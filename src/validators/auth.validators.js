@@ -125,4 +125,21 @@ const userChangeMPINValidator = () => {
   ];
 };
 
-export { userRegisterValidator, userLoginValidator, userChangeMPINValidator };
+// ==================== FORGOT MPIN VALIDATOR ====================
+const userForgotMPINValidator = () => {
+  return [
+    body("contact")
+      .trim()
+      .notEmpty()
+      .withMessage("Contact number is required")
+      .matches(/^\+91[6-9]\d{9}$/)
+      .withMessage("Contact must be in the format +91XXXXXXXXXX"),
+  ];
+};
+
+export {
+  userRegisterValidator,
+  userLoginValidator,
+  userChangeMPINValidator,
+  userForgotMPINValidator,
+};
