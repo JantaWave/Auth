@@ -83,4 +83,25 @@ const userRegisterValidator = () => {
   ];
 };
 
-export { userRegisterValidator };
+// ==================== LOGIN VALIDATOR ====================
+const userLoginValidator = () => {
+  return [
+    body("contact")
+      .trim()
+      .notEmpty()
+      .withMessage("Contact number is required")
+      .matches(/^\+91[6-9]\d{9}$/)
+      .withMessage("Contact must be in the format +91XXXXXXXXXX"),
+
+    body("mpin")
+      .trim()
+      .notEmpty()
+      .withMessage("MPIN is required")
+      .isLength({ min: 4, max: 4 })
+      .withMessage("MPIN must be exactly 4 digits")
+      .matches(/^\d{4}$/)
+      .withMessage("MPIN must contain only numbers"),
+  ];
+};
+
+export { userRegisterValidator, userLoginValidator };
