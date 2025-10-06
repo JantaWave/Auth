@@ -2,7 +2,6 @@ import { body } from "express-validator";
 
 // ==================== REGISTER VALIDATOR ====================
 const userRegisterValidator = () => {
-  console.log("api reaches auth.validators.js");
   return [
     body("mpin")
       .trim()

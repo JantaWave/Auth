@@ -24,7 +24,6 @@ import { ApiError } from "../utils/ApiError.js";
  * }
  */
 export const validate = (req, res, next) => {
-  console.log("api reaches validate.js");
   const errors = validationResult(req);
 
   // If there are no validation errors → proceed
