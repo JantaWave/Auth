@@ -1,7 +1,7 @@
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import dotenv from "dotenv";
-import redisClient from "../config/redisClient.js";
+import redisClient from "../config/redis.js";
 
 dotenv.config();
 

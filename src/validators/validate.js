@@ -1,27 +1,43 @@
 import { validationResult } from "express-validator";
-import { errorHandler } from "../middlewares/error.middleware.js";
 import { ApiError } from "../utils/ApiError.js";
+
 /**
+ * @description
+ * Centralized request validation middleware.
+ * Checks for validation errors from express-validator chains,
+ * structures them uniformly, and forwards them to the global errorHandler.
  *
- * @param {import("express").Request} req
- * @param {import("express").Response} res
- * @param {import("express").NextFunction} next
+ * @usage
+ * router.post("/register", userRegisterValidator(), validate, controller);
  *
- * @description This is the validate middleware responsible to centralize the error checking done by the `express-validator` `ValidationChains`.
- * This checks if the request validation has errors.
- * If yes then it structures them and throws an {@link ApiError} which forwards the error to the {@link errorHandler} middleware which throws a uniform response at a single place
+ * @throws {ApiError} - If validation fails.
  *
+ * @example
+ * Response structure:
+ * {
+ *   "success": false,
+ *   "statusCode": 422,
+ *   "message": "Received data is not valid",
+ *   "errors": [
+ *     { "field": "contact", "message": "Invalid format" }
+ *   ]
+ * }
  */
 export const validate = (req, res, next) => {
+  console.log("api reaches validate.js");
   const errors = validationResult(req);
+
+  // If there are no validation errors → proceed
   if (errors.isEmpty()) {
     return next();
   }
 
+  // Extract all errors into a consistent shape
   const extractedErrors = errors.array().map((err) => ({
     field: err.path,
     message: err.msg,
   }));
 
-  throw new ApiError(422, "Received data is not valid", extractedErrors);
+  // Forward structured error to errorHandler
+  return next(new ApiError(422, "Received data is not valid", extractedErrors));
 };
