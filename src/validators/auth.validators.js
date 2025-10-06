@@ -104,4 +104,25 @@ const userLoginValidator = () => {
   ];
 };
 
-export { userRegisterValidator, userLoginValidator };
+// ==================== CHANGE MPIN VALIDATOR ====================
+const userChangeMPINValidator = () => {
+  return [
+    body("oldMpin")
+      .trim()
+      .notEmpty()
+      .withMessage("Old MPIN is required")
+      .isLength({ min: 4, max: 4 })
+      .matches(/^\d{4}$/)
+      .withMessage("Old MPIN must be 4 digits"),
+
+    body("newMpin")
+      .trim()
+      .notEmpty()
+      .withMessage("New MPIN is required")
+      .isLength({ min: 4, max: 4 })
+      .matches(/^\d{4}$/)
+      .withMessage("New MPIN must be 4 digits"),
+  ];
+};
+
+export { userRegisterValidator, userLoginValidator, userChangeMPINValidator };
