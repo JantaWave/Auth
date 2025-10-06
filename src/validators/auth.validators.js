@@ -137,9 +137,23 @@ const userForgotMPINValidator = () => {
   ];
 };
 
+// ==================== RESET MPIN VALIDATOR ====================
+const userResetForgottenMPINValidator = () => {
+  return [
+    body("newMpin")
+      .trim()
+      .notEmpty()
+      .withMessage("New MPIN is required")
+      .isLength({ min: 4, max: 4 })
+      .matches(/^\d{4}$/)
+      .withMessage("New MPIN must be 4 digits"),
+  ];
+};
+
 export {
   userRegisterValidator,
   userLoginValidator,
   userChangeMPINValidator,
   userForgotMPINValidator,
+  userResetForgottenMPINValidator,
 };
