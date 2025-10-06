@@ -1,61 +1,62 @@
 import { DatabaseError } from "pg";
 import logger from "../logger/winston.logger.js";
 import { ApiError } from "../utils/ApiError.js";
-import { asyncHandler } from "../utils/asyncHandler.js";
 import { removeUnusedMulterImageFilesOnError } from "../utils/helper.js";
 
 /**
- * @param {Error | ApiError} err
- * @param {import("express").Request} req
- * @param {import("express").Response} res
- * @param {import("express").NextFunction} next
- *
- * @description This middleware is responsible to catch the errors from any request handler wrapped inside the {@link asyncHandler}
+ * Global error-handling middleware.
+ * Converts any thrown error into a uniform ApiError format and logs it.
  */
 const errorHandler = (err, req, res, next) => {
   let error = err;
 
-  // Check if the error is an instance of an ApiError class which extends native Error class
-  if (!(error instanceof ApiError)) {
-    // if not, create a new ApiError instance to keep the consistency
+  // 🧱 Handle invalid JSON body
+  if (error instanceof SyntaxError && "body" in error) {
+    error = new ApiError(400, "Invalid JSON format");
+  }
 
+  // 🖼 Handle Multer file upload size error
+  if (error.code === "LIMIT_FILE_SIZE") {
+    error = new ApiError(413, "Uploaded file too large");
+  }
+
+  // 🧩 Convert unknown errors into ApiError for consistency
+  if (!(error instanceof ApiError)) {
     let statusCode = 500;
     let message = error.message || "Something went wrong";
 
-    // Handle PostgreSQL/Neon database errors
+    // 🗄 Handle PostgreSQL/Neon DB errors
     if (error instanceof DatabaseError || error.code) {
       statusCode = 400;
-
-      // Map common PostgreSQL error codes to user-friendly messages
       switch (error.code) {
-        case "23505": // unique_violation
+        case "23505":
           message = "A record with this data already exists";
           break;
-        case "23503": // foreign_key_violation
+        case "23503":
           message = "Referenced record does not exist";
           break;
-        case "23502": // not_null_violation
+        case "23502":
           message = "Required field is missing";
           break;
-        case "22P02": // invalid_text_representation
+        case "22P02":
           message = "Invalid data format provided";
           break;
-        case "23514": // check_violation
+        case "23514":
           message = "Data validation failed";
           break;
-        case "42P01": // undefined_table
+        case "42P01":
           message = "Database table not found";
           break;
-        case "42703": // undefined_column
+        case "42703":
           message = "Database column not found";
           break;
-        case "08006": // connection_failure
-        case "08003": // connection_does_not_exist
-        case "08000": // connection_exception
+        case "08006":
+        case "08003":
+        case "08000":
           statusCode = 503;
           message = "Database connection error";
           break;
-        case "57014": // query_canceled
+        case "57014":
           statusCode = 408;
           message = "Database query timeout";
           break;
@@ -69,17 +70,22 @@ const errorHandler = (err, req, res, next) => {
     error = new ApiError(statusCode, message, error?.errors || [], err.stack);
   }
 
-  // Now we are sure that the `error` variable will be an instance of ApiError class
+  // 🧾 Standardized error response
   const response = {
-    ...error,
+    success: false,
+    statusCode: error.statusCode,
     message: error.message,
-    ...(process.env.NODE_ENV === "development" ? { stack: error.stack } : {}), // Error stack traces should be visible in development for debugging
+    errors: error.errors || [],
+    ...(process.env.NODE_ENV === "development" ? { stack: error.stack } : {}),
   };
 
-  logger.error(`${error.message}`);
+  // 🧹 Cleanup temporary uploads if request failed
   removeUnusedMulterImageFilesOnError(req);
 
-  // Send error response
+  // 🪵 Log the error
+  logger.error(`${error.message}\n${error.stack}`);
+
+  // 🚀 Send response
   return res.status(error.statusCode).json(response);
 };
 

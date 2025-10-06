@@ -1,5 +1,5 @@
 import { db } from "../config/db.js";
-import AddressModel from "./AddressModel.js";
+import AddressModel from "./address.models.js";
 
 class UserModel {
   // Internal helper to fetch a single row
@@ -77,9 +77,8 @@ class UserModel {
 
     const query = `
       INSERT INTO users 
-        (first_name, last_name, hashed_mpin, contact, date_of_birth, 
-         state, district, block, village, village_id)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        (first_name, last_name, hashed_mpin, contact, date_of_birth, village_id)
+      VALUES ($1, $2, $3, $4, $5, $6)
       RETURNING *
     `;
 
@@ -89,10 +88,6 @@ class UserModel {
       hashed_mpin,
       payload.contact,
       payload.date_of_birth || null,
-      payload.state.trim(),
-      payload.district.trim(),
-      payload.block.trim(),
-      payload.village.trim(),
       villageId,
     ];
 
@@ -136,12 +131,8 @@ class UserModel {
       village,
     );
 
-    // Update both old columns and new village_id
+    // Update only village_id (no longer storing redundant columns)
     return await this.update(userId, {
-      state: state.trim(),
-      district: district.trim(),
-      block: block.trim(),
-      village: village.trim(),
       village_id: villageId,
     });
   }
