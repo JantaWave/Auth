@@ -52,8 +52,7 @@ class UserModel {
       LEFT JOIN states s ON d.state_id = s.state_id
       WHERE u.contact = $1
     `;
-    const user = await this._single(query, [contact]);
-    return this.sanitizeUser(user);
+    return this._single(query, [contact]);
   }
 
   // Check if a user exists by mobile

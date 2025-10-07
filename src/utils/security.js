@@ -1,35 +1,35 @@
-import argon2 from "argon2";
-import dotenv from "dotenv";
-dotenv.config();
+import {
+  argon2HashWithPepper,
+  argon2VerifyWithPepper,
+  hmacSHA256,
+  safeCompare,
+} from "./crypto.js";
 
-const pepper = process.env.PEPPER;
 /**
- * Hash MPIN (4-digit secure PIN)
+ * Hash MPIN using Argon2 + pepper
  */
 export async function hashMpin(mpin) {
-  try {
-    const pepperedMPIN = `${mpin}${pepper}`;
-    return await argon2.hash(pepperedMPIN, {
-      type: argon2.argon2id,
-      memoryCost: 2 ** 16, // 64MB
-      timeCost: 3,
-      parallelism: 1,
-    });
-  } catch (err) {
-    console.error("❌ Error hashing MPIN:", err);
-    throw new Error("Failed to hash MPIN");
-  }
+  return await argon2HashWithPepper(mpin);
 }
 
 /**
  * Verify MPIN
  */
 export async function verifyMpin(hashedMpin, plainMpin) {
-  try {
-    const pepperedMPIN = `${plainMpin}${pepper}`;
-    return await argon2.verify(hashedMpin, pepperedMPIN);
-  } catch (err) {
-    console.error("❌ Error verifying MPIN:", err);
-    return false;
-  }
+  return await argon2VerifyWithPepper(hashedMpin, plainMpin);
+}
+
+/**
+ * Hash refresh token using HMAC-SHA256 (fast and simple)
+ */
+export function hashToken(token) {
+  return hmacSHA256(token);
+}
+
+/**
+ * Verify refresh token using constant-time comparison
+ */
+export function verifyToken(hashedToken, plainToken) {
+  const inputHash = hmacSHA256(plainToken);
+  return safeCompare(hashedToken, inputHash);
 }

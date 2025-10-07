@@ -44,6 +44,16 @@ class UserSessionModel {
     return rows[0] || null;
   }
 
+  static async findAllActiveForUser(userId) {
+    const q = `
+    SELECT * FROM user_sessions
+    WHERE user_id = $1 AND expires_at > NOW()
+    ORDER BY created_at DESC
+  `;
+    const { rows } = await db.query(q, [userId]);
+    return rows;
+  }
+
   static async revokeSession(sessionId) {
     const q = "DELETE FROM user_sessions WHERE id = $1 RETURNING *";
     const { rows } = await db.query(q, [sessionId]);
