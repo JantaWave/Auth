@@ -45,7 +45,7 @@ router.post(
   validate,
   loginUser,
 );
-// router.post("/logout", authMiddleware, logout);
-// router.post("/logout-from-all-devices", authMiddleware, logoutFromAllDevices);
+router.post("/logout", authMiddleware, logout);
+router.post("/logout-from-all-devices", authMiddleware, logoutFromAllDevices);
 
 export default router;

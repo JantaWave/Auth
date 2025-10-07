@@ -4,7 +4,7 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-const PEPPER = process.env.PEPPER || "supersecretkey";
+const PEPPER = process.env.PEPPER;
 
 /**
  * Create a secure HMAC-SHA256 hash

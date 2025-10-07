@@ -19,6 +19,7 @@ export const createSession = async (
 
   // Convert deviceInfo object to JSONB-friendly format
   const deviceData = {
+    userAgent: deviceInfo.userAgent,
     device: deviceInfo.device || "Unknown",
     browser: deviceInfo.browser || "Unknown",
     browserVersion: deviceInfo.browserVersion || "Unknown",
@@ -36,7 +37,7 @@ export const createSession = async (
  * @param {String} rawToken - Plain refresh token from client
  * @returns {Promise<Object|false>} Session object if valid, false otherwise
  */
-export const verifyRefreshToken = async (userId, rawToken) => {
+export const verifySessionRefreshToken = async (userId, rawToken) => {
   // Find all active sessions for the user (not just latest)
   const sessions = await UserSessionModel.findAllActiveForUser(userId);
 

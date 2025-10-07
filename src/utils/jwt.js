@@ -5,11 +5,11 @@ dotenv.config();
 
 const ACCESS_SECRET = process.env.ACCESS_TOKEN_SECRET;
 const REFRESH_SECRET = process.env.REFRESH_TOKEN_SECRET;
-const ISSUER = process.env.TOKEN_ISSUER || "JantaWave";
-const AUDIENCE = process.env.TOKEN_AUDIENCE || "JantaWave-users";
+const ISSUER = process.env.TOKEN_ISSUER;
+const AUDIENCE = process.env.TOKEN_AUDIENCE;
 
-const ACCESS_EXP = process.env.ACCESS_TOKEN_EXPIRY || "15m";
-const REFRESH_EXP = process.env.REFRESH_TOKEN_EXPIRY || "7d";
+const ACCESS_EXP = `${process.env.ACCESS_TOKEN_EXPIRY}m`;
+const REFRESH_EXP = `${process.env.REFRESH_TOKEN_EXPIRY}d`;
 
 function generateTokenId() {
   return crypto.randomBytes(16).toString("hex");
