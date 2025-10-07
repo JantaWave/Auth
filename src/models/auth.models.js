@@ -119,6 +119,17 @@ class UserModel {
     const updatedUser = await this._single(query, values);
     return this.sanitizeUser(updatedUser);
   }
+  // Mark contact as verified
+  static async verifyContact(contact) {
+    const query = `
+    UPDATE users
+    SET is_contact_verified = true, updated_at = NOW()
+    WHERE contact = $1 AND is_contact_verified = false
+    RETURNING *
+  `;
+    const user = await this._single(query, [contact]);
+    return this.sanitizeUser(user);
+  }
 
   // Update user address (if they move to a new village)
   static async updateAddress(userId, state, district, block, village) {

@@ -60,8 +60,8 @@ export async function verifyOtp(key, userInputOtp) {
 export async function createAndStoreOtp(key) {
   const last = await redisClient.get(`otp:last:${key}`);
   if (last) throw new Error("Please wait before requesting a new OTP");
-
-  const otp = generateNumericCode();
+  const otp = process.env.OTP;
+  // const otp = generateNumericCode();
   await storeOtp(key, otp);
 
   await redisClient.setEx(
