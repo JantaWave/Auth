@@ -14,6 +14,10 @@ import {
   logout,
   logoutFromAllDevices,
 } from "../controllers/auth/logout.controller.js";
+import {
+  sendVerificationOTP,
+  verifyContact,
+} from "../controllers/auth/verifyContact.controller.js";
 
 const router = Router();
 
@@ -47,5 +51,7 @@ router.post(
 );
 router.post("/logout", authMiddleware, logout);
 router.post("/logout-from-all-devices", authMiddleware, logoutFromAllDevices);
+router.post("/verify-contact", verifyContact);
+router.post("/resend-otp", sendVerificationOTP);
 
 export default router;

@@ -1,6 +1,6 @@
-import redisClient from "../config/redisClient.js";
+import redisClient from "../config/redis.js";
 import dotenv from "dotenv";
-import { hmacSHA256, safeCompare, generateNumericCode } from "./cryptoUtils.js";
+import { hmacSHA256, safeCompare, generateNumericCode } from "./crypto.js";
 
 dotenv.config();
 
