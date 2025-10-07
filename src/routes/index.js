@@ -9,6 +9,11 @@ import { validate } from "../validators/validate.js";
 import { registerUser } from "../controllers/auth/register.controller.js";
 import { errorHandler } from "../middlewares/error.middleware.js";
 import { loginUser } from "../controllers/auth/login.controller.js";
+import { deviceInfoMiddleware } from "../middlewares/deviceinfo.middleware.js";
+import {
+  logout,
+  logoutFromAllDevices,
+} from "../controllers/auth/logout.controller.js";
 
 const router = Router();
 
@@ -26,8 +31,20 @@ router.get("/users", async (req, res) => {
 
 router.use(errorHandler);
 
-router.post("/register", userRegisterValidator(), validate, registerUser);
-router.post("/login", userLoginValidator(), validate, loginUser);
+router.post(
+  "/register",
+  deviceInfoMiddleware,
+  userRegisterValidator(),
+  validate,
+  registerUser,
+);
+router.post(
+  "/login",
+  deviceInfoMiddleware,
+  userLoginValidator(),
+  validate,
+  loginUser,
+);
 // router.post("/logout", authMiddleware, logout);
 // router.post("/logout-from-all-devices", authMiddleware, logoutFromAllDevices);
 

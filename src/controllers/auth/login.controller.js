@@ -8,21 +8,39 @@ import {
   getUserActiveSessions,
 } from "../../services/session.service.js";
 import UserModel from "../../models/auth.models.js";
+import dotenv from "dotenv";
+dotenv.config();
+const MAX_ATTEMPTS = parseInt(process.env.MAX_LOGIN_ATTEMPTS || "5", 10);
+const LOCK_MINUTES = parseInt(process.env.ACCOUNT_LOCK_MINUTES || "30", 10);
 
 export const loginUser = asyncHandler(async (req, res) => {
   const { contact, mpin } = req.body;
   const user = await UserModel.findByMobile(contact);
   if (!user) throw new ApiError(401, "Invalid credentials");
 
+  if (!user.is_contact_verified) {
+    throw new ApiError(
+      401,
+      "Please verify your phone number before logging in.",
+    );
+  }
+
   if (user.lock_until && new Date(user.lock_until) > new Date()) {
-    throw new ApiError(423, "Account locked temporarily");
+    throw new ApiError(
+      423,
+      `Account is temporarly blocked, please try after ${new Date(user.lock_until)}.`,
+    );
   }
 
   const isValid = await verifyMpin(user.hashed_mpin, mpin);
   if (!isValid) {
     const attempts = (user.login_attempts || 0) + 1;
-    await UserModel.incrementLoginAttempts(user.id, attempts);
-    throw new ApiError(401, "Invalid MPIN");
+    const lockUntil =
+      attempts >= MAX_ATTEMPTS
+        ? new Date(Date.now() + LOCK_MINUTES * 60 * 1000)
+        : null;
+    await UserModel.incrementLoginAttempts(user.id, attempts, lockUntil);
+    throw new ApiError(401, "Invalid Credentials");
   }
 
   const accessToken = generateAccessToken({
@@ -37,25 +55,44 @@ export const loginUser = asyncHandler(async (req, res) => {
     req.deviceInfo,
     req.ip,
   );
+  const options = {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "Strict",
+  };
   await UserModel.updateLastLogin(user.id);
   await UserModel.resetLoginAttempts(user.id);
+  await UserModel.setOnlineStatus(user.id, true);
 
   const activeSessions = await getUserActiveSessions(user.id);
 
-  return res.status(200).json(
-    new ApiResponse(
-      200,
-      {
-        user: {
-          id: user.id,
-          first_name: user.first_name,
-          last_name: user.last_name,
-          contact: user.contact,
+  return res
+    .status(200)
+    .cookie("refresh_token", refreshToken, {
+      ...options,
+      maxAge: process.env.REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000,
+    })
+    .cookie("session_id", session.id, {
+      ...options,
+      maxAge: process.env.REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000,
+    })
+    .json(
+      new ApiResponse(
+        200,
+        {
+          user: {
+            id: user.id,
+            first_name: user.first_name,
+            last_name: user.last_name,
+            contact: user.contact,
+          },
+          tokens: { accessToken, refreshToken },
+          session: {
+            id: session.id,
+            activeSessionCount: activeSessions.length,
+          },
         },
-        tokens: { accessToken, refreshToken },
-        session: { id: session.id, activeSessionCount: activeSessions.length },
-      },
-      "Login successful",
-    ),
-  );
+        "Login successful",
+      ),
+    );
 });
