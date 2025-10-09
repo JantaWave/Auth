@@ -6,7 +6,13 @@ import { deviceInfoMiddleware } from "./middlewares/deviceinfo.middleware.js";
 
 export const app = express();
 
-app.use(cors());
+app.use(
+  cors({
+    origin: ["https://dev-auth.jantawave.co.in"],
+    methods: ["GET", "POST", "PATCH", "PUT", "DELETE"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  }),
+);
 app.use(express.json());
 app.use(cookieParser());
 app.use(deviceInfoMiddleware);

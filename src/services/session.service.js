@@ -115,6 +115,7 @@ export const getUserActiveSessions = async (userId) => {
   // Return sanitized session data (without token hash)
   return sessions.map((session) => ({
     id: session.id,
+    userAgent: session.device_info?.userAgent,
     device: session.device_info?.device || "Unknown",
     browser: session.device_info?.browser || "Unknown",
     os: session.device_info?.os || "Unknown",

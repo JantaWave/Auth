@@ -18,6 +18,10 @@ import {
   sendVerificationOTP,
   verifyContact,
 } from "../controllers/auth/verifyContact.controller.js";
+import {
+  getProfile,
+  updateProfile,
+} from "../controllers/user/profile.controller.js";
 
 const router = Router();
 
@@ -53,5 +57,7 @@ router.post("/logout", authMiddleware, logout);
 router.post("/logout-from-all-devices", authMiddleware, logoutFromAllDevices);
 router.post("/verify-contact", verifyContact);
 router.post("/resend-otp", sendVerificationOTP);
+router.get("/user/profile", authMiddleware, getProfile);
+router.patch("/user/profile", authMiddleware, updateProfile);
 
 export default router;

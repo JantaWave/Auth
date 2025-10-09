@@ -17,11 +17,9 @@ export const getProfile = asyncHandler(async (req, res) => {
     throw new ApiError(404, "User not found");
   }
 
-  // Get active sessions
   const activeSessions = await getUserActiveSessions(userId);
-
-  // Mark current session
   const currentSessionId = req.cookies?.session_id;
+
   const sessionsWithCurrent = activeSessions.map((session) => ({
     ...session,
     isCurrent: session.id === currentSessionId,
@@ -33,17 +31,19 @@ export const getProfile = asyncHandler(async (req, res) => {
       {
         user: {
           id: user.id,
-          firstName: user.first_name,
-          lastName: user.last_name,
+          first_name: user.first_name,
+          last_name: user.last_name,
           contact: user.contact,
-          email: user.email,
-          dateOfBirth: user.date_of_birth,
-          gender: user.gender,
-          profilePicture: user.profile_picture,
+          date_of_birth: user.date_of_birth,
+          avatar_url: user.avatar_url,
+          bio: user.bio,
+          state: user.state_normalized,
+          district: user.district_normalized,
+          block: user.block_normalized,
+          village: user.village_normalized,
           isContactVerified: user.is_contact_verified,
-          isEmailVerified: user.is_email_verified,
           isOnline: user.is_online,
-          lastLogin: user.last_login,
+          lastSeen: user.last_seen,
           createdAt: user.created_at,
           updatedAt: user.updated_at,
         },
@@ -61,72 +61,67 @@ export const getProfile = asyncHandler(async (req, res) => {
  */
 export const updateProfile = asyncHandler(async (req, res) => {
   const userId = req.user.id;
-  const { firstName, lastName, email, dateOfBirth, gender, profilePicture } =
-    req.body;
+  const {
+    first_name,
+    last_name,
+    date_of_birth,
+    avatar_url,
+    bio,
+    state,
+    district,
+    block,
+    village,
+  } = req.body;
 
-  // Validate at least one field is provided
+  // Validate at least one field
   if (
-    !firstName &&
-    !lastName &&
-    !email &&
-    !dateOfBirth &&
-    !gender &&
-    !profilePicture
+    !first_name &&
+    !last_name &&
+    !date_of_birth &&
+    !avatar_url &&
+    !bio &&
+    !state &&
+    !district &&
+    !block &&
+    !village
   ) {
     throw new ApiError(400, "At least one field is required to update");
   }
 
-  // Validate email format if provided
-  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    throw new ApiError(400, "Invalid email format");
-  }
-
-  // Validate gender if provided
-  if (gender && !["male", "female", "other"].includes(gender.toLowerCase())) {
-    throw new ApiError(400, "Gender must be male, female, or other");
-  }
-
-  // Validate date of birth if provided
-  if (dateOfBirth) {
-    const dob = new Date(dateOfBirth);
+  // Date of birth validation
+  if (date_of_birth) {
+    const dob = new Date(date_of_birth);
     const today = new Date();
     const age = today.getFullYear() - dob.getFullYear();
 
-    if (isNaN(dob.getTime())) {
-      throw new ApiError(400, "Invalid date of birth format");
-    }
-
-    if (age < 13) {
-      throw new ApiError(400, "You must be at least 13 years old");
-    }
-
-    if (age > 120) {
+    if (isNaN(dob.getTime())) throw new ApiError(400, "Invalid date format");
+    if (age < 13) throw new ApiError(400, "You must be at least 13 years old");
+    if (age > 120 || dob > new Date()) {
       throw new ApiError(400, "Invalid date of birth");
     }
   }
 
-  // Check if email already exists (if being changed)
-  if (email) {
-    const existingUser = await UserModel.findByEmail(email);
-    if (existingUser && existingUser.id !== userId) {
-      throw new ApiError(409, "Email is already registered to another account");
-    }
-  }
-
-  // Prepare update data
   const updateData = {};
-  if (firstName) updateData.first_name = firstName.trim();
-  if (lastName) updateData.last_name = lastName.trim();
-  if (email) {
-    updateData.email = email.trim().toLowerCase();
-    updateData.is_email_verified = false; // Reset verification if email changed
-  }
-  if (dateOfBirth) updateData.date_of_birth = dateOfBirth;
-  if (gender) updateData.gender = gender.toLowerCase();
-  if (profilePicture) updateData.profile_picture = profilePicture;
+  if (first_name) updateData.first_name = first_name.trim();
+  if (last_name) updateData.last_name = last_name.trim();
+  if (date_of_birth) updateData.date_of_birth = date_of_birth;
+  if (avatar_url) updateData.avatar_url = avatar_url;
+  if (bio) updateData.bio = bio.trim();
 
-  // Update user
-  const updatedUser = await UserModel.updateProfile(userId, updateData);
+  let updatedUser;
+
+  // If address fields are included
+  if (state || district || block || village) {
+    updatedUser = await UserModel.updateAddress(
+      userId,
+      state,
+      district,
+      block,
+      village,
+    );
+  } else {
+    updatedUser = await UserModel.update(userId, updateData);
+  }
 
   if (!updatedUser) {
     throw new ApiError(500, "Failed to update profile");
@@ -138,15 +133,17 @@ export const updateProfile = asyncHandler(async (req, res) => {
       {
         user: {
           id: updatedUser.id,
-          firstName: updatedUser.first_name,
-          lastName: updatedUser.last_name,
+          first_name: updatedUser.first_name,
+          last_name: updatedUser.last_name,
           contact: updatedUser.contact,
-          email: updatedUser.email,
-          dateOfBirth: updatedUser.date_of_birth,
-          gender: updatedUser.gender,
-          profilePicture: updatedUser.profile_picture,
+          date_of_birth: updatedUser.date_of_birth,
+          avatar_url: updatedUser.avatar_url,
+          bio: updatedUser.bio,
+          state: updatedUser.state_normalized,
+          district: updatedUser.district_normalized,
+          block: updatedUser.block_normalized,
+          village: updatedUser.village_normalized,
           isContactVerified: updatedUser.is_contact_verified,
-          isEmailVerified: updatedUser.is_email_verified,
         },
       },
       "Profile updated successfully",
