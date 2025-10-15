@@ -1,6 +1,10 @@
 import crypto from "crypto";
 import redisClient from "../config/redisClient.js";
 import dotenv from "dotenv";
+<<<<<<< Updated upstream
+=======
+import { hmacSHA256, safeCompare, generateNumericCode } from "./crypto.js";
+>>>>>>> Stashed changes
 dotenv.config();
 
 const OTP_TTL_SECONDS = parseInt(process.env.OTP_EXPIRY_SECONDS || "300", 10); // 5 mins

@@ -70,36 +70,12 @@ const userRegisterValidator = () => {
         return true;
       }),
 
-    body("state")
+    body("village_id")
       .trim()
       .notEmpty()
-      .withMessage("State is required")
+      .withMessage("VillageId is required")
       .bail()
-      .isLength({ min: 3 })
-      .withMessage("State name is too short"),
-
-    body("district")
-      .trim()
-      .notEmpty()
-      .withMessage("District is required")
-      .bail()
-      .isLength({ min: 3 })
-      .withMessage("District name is too short"),
-
-    body("block")
-      .trim()
-      .notEmpty()
-      .withMessage("Block is required")
-      .bail()
-      .isLength({ min: 3 })
-      .withMessage("Block name is too short"),
-
-    body("village")
-      .trim()
-      .notEmpty()
-      .withMessage("Village is required")
-      .bail()
-      .isLength({ min: 3 })
+      .isLength({ min: 1 })
       .withMessage("Village name is too short"),
   ];
 };
