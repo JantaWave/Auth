@@ -20,6 +20,7 @@ const REFRESH_TOKEN_EXPIRY_DAYS = parseInt(
 
 export const loginUser = asyncHandler(async (req, res) => {
   const { contact, mpin } = req.body;
+  console.log(req);
   const user = await UserModel.findByMobile(contact);
 
   if (!user) throw new ApiError(401, "User not found, Try register.");
