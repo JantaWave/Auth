@@ -15,15 +15,12 @@ import {
   logoutFromAllDevices,
 } from "../controllers/auth/logout.controller.js";
 import {
-<<<<<<< HEAD
-=======
   getAllStates,
   getBlocksByDistrict,
   getDistrictsByState,
   getVillagesByBlock,
 } from "../controllers/user/address.controller.js";
 import {
->>>>>>> feature/register
   sendVerificationOTP,
   verifyContact,
 } from "../controllers/auth/verifyContact.controller.js";
@@ -64,13 +61,11 @@ router.post(
 );
 router.post("/logout", authMiddleware, logout);
 router.post("/logout-from-all-devices", authMiddleware, logoutFromAllDevices);
-<<<<<<< HEAD
 router.post("/verify-contact", verifyContact);
 router.post("/resend-otp", sendVerificationOTP);
 router.get("/user/profile", authMiddleware, getProfile);
 router.patch("/user/profile", authMiddleware, updateProfile);
 
-=======
 router.post("/verify-otp", verifyContact);
 router.post("/send-otp", sendVerificationOTP);
 router.get("/user/profile", authMiddleware, getProfile);
@@ -81,5 +76,4 @@ router.get("/states/:stateId/districts", getDistrictsByState);
 router.get("/districts/:districtId/blocks", getBlocksByDistrict);
 router.get("/blocks/:blockId/villages", getVillagesByBlock);
 
->>>>>>> feature/register
 export default router;
