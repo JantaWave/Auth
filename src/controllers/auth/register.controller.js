@@ -3,10 +3,7 @@ import { asyncHandler } from "../../utils/asyncHandler.js";
 import { hashMpin } from "../../utils/security.js";
 import { ApiResponse } from "../../utils/ApiResponse.js";
 import { ApiError } from "../../utils/ApiError.js";
-<<<<<<< HEAD
-=======
 import redisClient from "../../config/redis.js";
->>>>>>> feature/register
 
 /**
  * @desc Register a new user
@@ -14,22 +11,19 @@ import redisClient from "../../config/redis.js";
  * @access Public
  */
 export const registerUser = asyncHandler(async (req, res) => {
-<<<<<<< HEAD
-  const {
-    first_name,
-    last_name,
-    mpin,
-    contact,
-    date_of_birth,
-    state,
-    district,
-    block,
-    village,
-  } = req.body;
-=======
   const { first_name, last_name, mpin, contact, date_of_birth, village_id } =
     req.body;
->>>>>>> feature/register
+
+  // Ensure all fields are provided
+  if (!first_name || !last_name || !mpin || !contact || !village_id) {
+    throw new ApiError(400, "All required fields must be provided.");
+  }
+
+  // Ensure OTP was verified before registration
+  const verified = await redisClient.get(`otp:verified:${contact}`);
+  if (!verified) {
+    throw new ApiError(400, "Please verify OTP before registering.");
+  }
 
   // Check if the contact is already registered
   const existingUser = await UserModel.findByMobile(contact);
@@ -37,34 +31,17 @@ export const registerUser = asyncHandler(async (req, res) => {
     throw new ApiError(409, "User with this contact already exists.");
   }
 
-<<<<<<< HEAD
+  // Hash the MPIN
   const hashedMpin = await hashMpin(mpin);
 
-  // Create user (UserModel will handle address normalization automatically)
-=======
-  const verified = await redisClient.get(`otp:verified:${contact}`);
-  if (!verified) {
-    throw new ApiError(400, "Please verify OTP before registering");
-  }
-
-  const hashedMpin = await hashMpin(mpin);
-
-  // Create user with only villageId (other hierarchical data derives from DB relationships)
->>>>>>> feature/register
+  // Create new user
   const newUser = await UserModel.create(
     {
       first_name,
       last_name,
       contact,
       date_of_birth,
-<<<<<<< HEAD
-      state,
-      district,
-      block,
-      village,
-=======
       village_id,
->>>>>>> feature/register
     },
     hashedMpin,
   );
@@ -73,10 +50,9 @@ export const registerUser = asyncHandler(async (req, res) => {
     throw new ApiError(500, "Failed to register user. Please try again.");
   }
 
-  // Fetch complete user with address details
+  // Fetch complete user details with address hierarchy
   const userWithAddress = await UserModel.findById(newUser.id);
 
-  // Prepare response with address details
   const responseData = {
     user: {
       id: userWithAddress.id,
@@ -92,17 +68,11 @@ export const registerUser = asyncHandler(async (req, res) => {
       },
       created_at: userWithAddress.created_at,
     },
-<<<<<<< HEAD
-    message: "Please verify your phone number to complete registration.",
   };
 
-=======
-    message: "User Registered successfully",
-  };
-
+  // Delete verified flag after successful registration
   await redisClient.del(`otp:verified:${contact}`);
 
->>>>>>> feature/register
   // Respond
   return res
     .status(201)
