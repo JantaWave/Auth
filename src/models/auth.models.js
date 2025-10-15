@@ -1,5 +1,4 @@
 import { db } from "../config/db.js";
-import AddressModel from "./address.models.js";
 
 class UserModel {
   // Internal helper to fetch a single row
@@ -64,16 +63,8 @@ class UserModel {
     return rows.length > 0;
   }
 
-  // Create a new user (with normalized address)
+  // Create a new user (with IDs for address)
   static async create(payload, hashed_mpin) {
-    // Resolve address hierarchy using AddressModel
-    const villageId = await AddressModel.resolveAddress(
-      payload.state,
-      payload.district,
-      payload.block,
-      payload.village,
-    );
-
     const query = `
       INSERT INTO users 
         (first_name, last_name, hashed_mpin, contact, date_of_birth, village_id)
@@ -87,7 +78,7 @@ class UserModel {
       hashed_mpin,
       payload.contact,
       payload.date_of_birth || null,
-      villageId,
+      payload.village_id,
     ];
 
     const user = await this._single(query, values);
@@ -119,6 +110,7 @@ class UserModel {
     const updatedUser = await this._single(query, values);
     return this.sanitizeUser(updatedUser);
   }
+<<<<<<< HEAD
   // Mark contact as verified
   static async verifyContact(contact) {
     const query = `
@@ -130,21 +122,33 @@ class UserModel {
     const user = await this._single(query, [contact]);
     return this.sanitizeUser(user);
   }
+=======
+<<<<<<< Updated upstream
+=======
+>>>>>>> feature/register
 
-  // Update user address (if they move to a new village)
-  static async updateAddress(userId, state, district, block, village) {
-    // Resolve new address
-    const villageId = await AddressModel.resolveAddress(
-      state,
-      district,
-      block,
-      village,
-    );
+  // Mark contact as verified
+  static async verifyContact(contact) {
+    const query = `
+      UPDATE users
+      SET is_contact_verified = true, updated_at = NOW()
+      WHERE contact = $1 AND is_contact_verified = false
+      RETURNING *
+    `;
+    const user = await this._single(query, [contact]);
+    return this.sanitizeUser(user);
+  }
+>>>>>>> Stashed changes
 
-    // Update only village_id (no longer storing redundant columns)
-    return await this.update(userId, {
-      village_id: villageId,
-    });
+  // Update user address using IDs directly
+  static async updateAddress(
+    userId,
+    state_id,
+    district_id,
+    block_id,
+    village_id,
+  ) {
+    return await this.update(userId, { village_id });
   }
 
   // Update last login timestamp and set online

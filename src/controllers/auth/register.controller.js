@@ -3,6 +3,10 @@ import { asyncHandler } from "../../utils/asyncHandler.js";
 import { hashMpin } from "../../utils/security.js";
 import { ApiResponse } from "../../utils/ApiResponse.js";
 import { ApiError } from "../../utils/ApiError.js";
+<<<<<<< HEAD
+=======
+import redisClient from "../../config/redis.js";
+>>>>>>> feature/register
 
 /**
  * @desc Register a new user
@@ -10,6 +14,7 @@ import { ApiError } from "../../utils/ApiError.js";
  * @access Public
  */
 export const registerUser = asyncHandler(async (req, res) => {
+<<<<<<< HEAD
   const {
     first_name,
     last_name,
@@ -21,6 +26,10 @@ export const registerUser = asyncHandler(async (req, res) => {
     block,
     village,
   } = req.body;
+=======
+  const { first_name, last_name, mpin, contact, date_of_birth, village_id } =
+    req.body;
+>>>>>>> feature/register
 
   // Check if the contact is already registered
   const existingUser = await UserModel.findByMobile(contact);
@@ -28,19 +37,34 @@ export const registerUser = asyncHandler(async (req, res) => {
     throw new ApiError(409, "User with this contact already exists.");
   }
 
+<<<<<<< HEAD
   const hashedMpin = await hashMpin(mpin);
 
   // Create user (UserModel will handle address normalization automatically)
+=======
+  const verified = await redisClient.get(`otp:verified:${contact}`);
+  if (!verified) {
+    throw new ApiError(400, "Please verify OTP before registering");
+  }
+
+  const hashedMpin = await hashMpin(mpin);
+
+  // Create user with only villageId (other hierarchical data derives from DB relationships)
+>>>>>>> feature/register
   const newUser = await UserModel.create(
     {
       first_name,
       last_name,
       contact,
       date_of_birth,
+<<<<<<< HEAD
       state,
       district,
       block,
       village,
+=======
+      village_id,
+>>>>>>> feature/register
     },
     hashedMpin,
   );
@@ -68,9 +92,17 @@ export const registerUser = asyncHandler(async (req, res) => {
       },
       created_at: userWithAddress.created_at,
     },
+<<<<<<< HEAD
     message: "Please verify your phone number to complete registration.",
   };
 
+=======
+    message: "User Registered successfully",
+  };
+
+  await redisClient.del(`otp:verified:${contact}`);
+
+>>>>>>> feature/register
   // Respond
   return res
     .status(201)
