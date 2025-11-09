@@ -67,8 +67,8 @@ class UserModel {
   static async create(payload, hashed_mpin) {
     const query = `
       INSERT INTO users 
-        (first_name, last_name, hashed_mpin, contact, date_of_birth, village_id)
-      VALUES ($1, $2, $3, $4, $5, $6)
+        (first_name, last_name, hashed_mpin, contact, date_of_birth, village_id, gender)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING *
     `;
 
@@ -79,6 +79,7 @@ class UserModel {
       payload.contact,
       payload.date_of_birth || null,
       payload.village_id,
+      payload.gender,
     ];
 
     const user = await this._single(query, values);
@@ -110,23 +111,6 @@ class UserModel {
     const updatedUser = await this._single(query, values);
     return this.sanitizeUser(updatedUser);
   }
-<<<<<<< HEAD
-  // Mark contact as verified
-  static async verifyContact(contact) {
-    const query = `
-    UPDATE users
-    SET is_contact_verified = true, updated_at = NOW()
-    WHERE contact = $1 AND is_contact_verified = false
-    RETURNING *
-  `;
-    const user = await this._single(query, [contact]);
-    return this.sanitizeUser(user);
-  }
-=======
-<<<<<<< Updated upstream
-=======
->>>>>>> feature/register
-
   // Mark contact as verified
   static async verifyContact(contact) {
     const query = `
@@ -138,16 +122,9 @@ class UserModel {
     const user = await this._single(query, [contact]);
     return this.sanitizeUser(user);
   }
->>>>>>> Stashed changes
 
   // Update user address using IDs directly
-  static async updateAddress(
-    userId,
-    state_id,
-    district_id,
-    block_id,
-    village_id,
-  ) {
+  static async updateAddress(userId, village_id) {
     return await this.update(userId, { village_id });
   }
 

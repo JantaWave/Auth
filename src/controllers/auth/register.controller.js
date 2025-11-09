@@ -11,11 +11,25 @@ import redisClient from "../../config/redis.js";
  * @access Public
  */
 export const registerUser = asyncHandler(async (req, res) => {
-  const { first_name, last_name, mpin, contact, date_of_birth, village_id } =
-    req.body;
+  const {
+    first_name,
+    last_name,
+    mpin,
+    contact,
+    date_of_birth,
+    village_id,
+    gender,
+  } = req.body;
 
   // Ensure all fields are provided
-  if (!first_name || !last_name || !mpin || !contact || !village_id) {
+  if (
+    !first_name ||
+    !last_name ||
+    !mpin ||
+    !contact ||
+    !village_id ||
+    !gender
+  ) {
     throw new ApiError(400, "All required fields must be provided.");
   }
 
@@ -42,9 +56,11 @@ export const registerUser = asyncHandler(async (req, res) => {
       contact,
       date_of_birth,
       village_id,
+      gender,
     },
     hashedMpin,
   );
+  await UserModel.verifyContact(newUser.contact);
 
   if (!newUser) {
     throw new ApiError(500, "Failed to register user. Please try again.");
@@ -60,6 +76,7 @@ export const registerUser = asyncHandler(async (req, res) => {
       last_name: userWithAddress.last_name,
       contact: userWithAddress.contact,
       date_of_birth: userWithAddress.date_of_birth,
+      gender: userWithAddress.gender,
       address: {
         state: userWithAddress.state_normalized,
         district: userWithAddress.district_normalized,

@@ -4,12 +4,13 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-const PEPPER = process.env.PEPPER;
+const PEPPER = process.env.PEPPER || "default_jantawave_secret";
 
 /**
  * Create a secure HMAC-SHA256 hash
  */
 export function hmacSHA256(data, secret = PEPPER) {
+  console.log("secret", secret);
   return crypto.createHmac("sha256", secret).update(data).digest("hex");
 }
 
@@ -18,8 +19,25 @@ export function hmacSHA256(data, secret = PEPPER) {
  */
 export function safeCompare(a, b) {
   try {
-    return crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
-  } catch {
+    console.log("safeCompare input a:", a);
+    console.log("safeCompare input b:", b);
+    console.log("a type:", typeof a, "b type:", typeof b);
+
+    const bufA = Buffer.from(a, "hex");
+    const bufB = Buffer.from(b, "hex");
+
+    console.log("bufA length:", bufA.length, "bufB length:", bufB.length);
+
+    if (bufA.length !== bufB.length) {
+      console.log("Buffer lengths don't match");
+      return false;
+    }
+
+    const result = crypto.timingSafeEqual(bufA, bufB);
+    console.log("timingSafeEqual result:", result);
+    return result;
+  } catch (err) {
+    console.log("safeCompare error:", err);
     return false;
   }
 }

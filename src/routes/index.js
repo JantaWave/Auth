@@ -15,6 +15,7 @@ import {
   logoutFromAllDevices,
 } from "../controllers/auth/logout.controller.js";
 import {
+  getAddressByVillage,
   getAllStates,
   getBlocksByDistrict,
   getDistrictsByState,
@@ -72,6 +73,7 @@ router.get("/user/profile", authMiddleware, getProfile);
 router.patch("/user/profile", authMiddleware, updateProfile);
 
 router.get("/states", getAllStates);
+router.get("/address/:villageId", getAddressByVillage);
 router.get("/states/:stateId/districts", getDistrictsByState);
 router.get("/districts/:districtId/blocks", getBlocksByDistrict);
 router.get("/blocks/:blockId/villages", getVillagesByBlock);

@@ -36,6 +36,7 @@ const userRegisterValidator = () => {
       .matches(/^\+91[6-9]\d{9}$/)
       .withMessage("Contact must be in the format +91XXXXXXXXXX"),
 
+    body("gender").trim().notEmpty().withMessage("gender is required"),
     body("date_of_birth")
       .notEmpty()
       .withMessage("Date of Birth is required")

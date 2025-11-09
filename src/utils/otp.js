@@ -1,14 +1,6 @@
 import redisClient from "../config/redis.js";
 import dotenv from "dotenv";
-<<<<<<< HEAD
 import { hmacSHA256, safeCompare, generateNumericCode } from "./crypto.js";
-
-=======
-<<<<<<< Updated upstream
-=======
-import { hmacSHA256, safeCompare, generateNumericCode } from "./crypto.js";
->>>>>>> Stashed changes
->>>>>>> feature/register
 dotenv.config();
 
 const OTP_TTL_SECONDS = parseInt(process.env.OTP_EXPIRY_SECONDS || "300", 10);
@@ -27,7 +19,8 @@ async function isRateLimited(key) {
 async function incrementAttempts(key) {
   const attemptsKey = `otp:attempts:${key}`;
   const current = await redisClient.incr(attemptsKey);
-  if (current === 1) await redisClient.expire(attemptsKey, OTP_TTL_SECONDS);
+  if (current === 1)
+    await redisClient.expire(attemptsKey, OTP_TTL_SECONDS + 30);
 }
 
 /** Store hashed OTP in Redis */
@@ -40,21 +33,35 @@ async function storeOtp(key, otp, ttl = OTP_TTL_SECONDS) {
 /** Verify OTP correctness */
 export async function verifyOtp(key, userInputOtp) {
   try {
-    if (await isRateLimited(key))
+    if (await isRateLimited(key)) {
+      console.log("Rate limited");
       return { success: false, reason: "too_many_attempts" };
+    }
 
     const storedHash = await redisClient.get(`otp:${key}`);
-    if (!storedHash) return { success: false, reason: "expired_or_not_found" };
+    console.log("storedHash from Redis:", storedHash);
 
+    if (!storedHash) {
+      console.log("No stored hash found");
+      return { success: false, reason: "expired_or_not_found" };
+    }
+
+    console.log("User input OTP:", userInputOtp);
     const inputHash = hmacSHA256(userInputOtp);
+    console.log("stored in redis:", storedHash);
+    console.log("Input otp hash:", inputHash);
+
     const isMatch = safeCompare(storedHash, inputHash);
+    console.log("isMatch result:", isMatch); // ⭐ ADD THIS
 
     if (isMatch) {
+      console.log("OTP matched - deleting keys");
       await redisClient.del(`otp:${key}`);
       await redisClient.del(`otp:attempts:${key}`);
       return { success: true };
     }
 
+    console.log("OTP did not match - incrementing attempts");
     await incrementAttempts(key);
     return { success: false, reason: "invalid_otp" };
   } catch (err) {
@@ -65,16 +72,26 @@ export async function verifyOtp(key, userInputOtp) {
 
 /** Generate + store new OTP with cooldown */
 export async function createAndStoreOtp(key) {
-  const last = await redisClient.get(`otp:last:${key}`);
-  if (last) throw new Error("Please wait before requesting a new OTP");
-  const otp = process.env.OTP;
-  // const otp = generateNumericCode();
-  await storeOtp(key, otp);
+  const last = await redisClient.get(`otp:last:${key}`); // Fixed
+  if (last) {
+    return { success: false, reason: "cooldown_active" };
+  }
 
+  const otp =
+    process.env.NODE_ENV === "production"
+      ? generateNumericCode()
+      : process.env.OTP;
+
+  await storeOtp(key, otp);
   await redisClient.setEx(
     `otp:last:${key}`,
     OTP_COOLDOWN_SECONDS,
     Date.now().toString(),
   );
-  return otp;
+
+  if (process.env.NODE_ENV !== "production") {
+    console.log(`[DEBUG] OTP for ${key}: ${otp}`); // Fixed
+  }
+
+  return { success: true, otp, expiresIn: OTP_TTL_SECONDS };
 }

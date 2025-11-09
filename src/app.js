@@ -4,6 +4,7 @@ import routes from "./routes/index.js";
 import cookieParser from "cookie-parser";
 import { deviceInfoMiddleware } from "./middlewares/deviceinfo.middleware.js";
 import dotenv from "dotenv";
+import { errorHandler } from "./middlewares/error.middleware.js";
 
 dotenv.config();
 
@@ -19,6 +20,7 @@ app.use(
 );
 
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.use(deviceInfoMiddleware);
 
@@ -26,3 +28,5 @@ app.use(deviceInfoMiddleware);
 app.use("/api/v1", routes);
 
 app.get("/health", (_, res) => res.send("Running server"));
+
+app.use(errorHandler);
