@@ -17,6 +17,47 @@ export const getAllStates = async (req, res) => {
   }
 };
 
+export const getAllDistricts = async (req, res) => {
+  try {
+    const districts = await AddressModel.getAllDistricts();
+    return res
+      .status(200)
+      .json(new ApiResponse(200, districts, "Districts fetched successfully"));
+  } catch (error) {
+    console.error("Error fetching districts:", error);
+    return res
+      .status(error.statusCode || 500)
+      .json(new ApiError(error.statusCode || 500, "Failed to fetch districts"));
+  }
+};
+export const getAllBlocks = async (req, res) => {
+  try {
+    const blocks = await AddressModel.getAllBlocks();
+    return res
+      .status(200)
+      .json(new ApiResponse(200, blocks, "Blocks fetched successfully"));
+  } catch (error) {
+    console.error("Error fetching blocks:", error);
+    return res
+      .status(error.statusCode || 500)
+      .json(new ApiError(error.statusCode || 500, "Failed to fetch blocks"));
+  }
+};
+export const getAllVillages = async (req, res) => {
+  try {
+    const villages = await AddressModel.getAllVillages();
+    console.log(villages);
+    return res
+      .status(200)
+      .json(new ApiResponse(200, villages, "Villages fetched successfully"));
+  } catch (error) {
+    console.error("Error fetching villages:", error);
+    return res
+      .status(error.statusCode || 500)
+      .json(new ApiError(error.statusCode || 500, "Failed to fetch villages"));
+  }
+};
+
 // Get districts by state ID
 export const getDistrictsByState = async (req, res) => {
   try {

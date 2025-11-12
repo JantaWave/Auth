@@ -1,5 +1,6 @@
 import UserModel from "../models/auth.models.js";
 import * as jwtUtil from "../utils/jwt.js"; // central JWT util
+import { ApiError } from "../utils/ApiError.js";
 
 export const authMiddleware = async (req, res, next) => {
   try {
@@ -36,5 +37,18 @@ export const authMiddleware = async (req, res, next) => {
     }
 
     res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+export const verifyAdmin = async (req, res, next) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res
+        .status(403)
+        .json(new ApiError(403, "Access denied. Admin only."));
+    }
+    next();
+  } catch (error) {
+    return res.status(403).json(new ApiError(403, "Access denied"));
   }
 };

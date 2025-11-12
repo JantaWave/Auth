@@ -166,7 +166,7 @@ class UserModel {
   }
 
   // Get all users from the same village
-  static async findByVillage(villageId) {
+  static async findUsersByVillage(villageId) {
     const query = `
       SELECT 
         u.*,
@@ -186,7 +186,7 @@ class UserModel {
   }
 
   // Get all users from same village by village name
-  static async findByVillageName(villageName) {
+  static async findUsersByVillageName(villageName) {
     const query = `
       SELECT 
         u.*,
@@ -202,6 +202,56 @@ class UserModel {
       WHERE v.village_name = $1
     `;
     const { rows } = await db.query(query, [villageName]);
+    return rows.map((user) => this.sanitizeUser(user));
+  }
+
+  static async getAllUserStats() {
+    const query = `
+    SELECT
+      COUNT(*) AS total_user,
+      SUM(CASE WHEN role = 'streamer' THEN 1 ELSE 0 END) AS total_leader
+    FROM users;
+  `;
+    const { rows } = await db.query(query);
+    return rows[0];
+  }
+  static async getAllUsers(searchTerm = "", roleFilter = "") {
+    let query = `
+    SELECT 
+      u.*,
+      v.village_name AS village_normalized,
+      b.block_name AS block_normalized,
+      d.district_name AS district_normalized,
+      s.state_name AS state_normalized
+    FROM users u
+    LEFT JOIN villages v ON u.village_id = v.village_id
+    LEFT JOIN blocks b ON v.block_id = b.block_id
+    LEFT JOIN districts d ON b.district_id = d.district_id
+    LEFT JOIN states s ON d.state_id = s.state_id
+    WHERE 1=1
+  `;
+
+    const params = [];
+
+    if (searchTerm?.trim()) {
+      params.push(`%${searchTerm.trim()}%`);
+      query += `
+      AND (
+        u.first_name ILIKE $${params.length}
+        OR u.last_name ILIKE $${params.length}
+        OR u.contact ILIKE $${params.length}
+      )
+    `;
+    }
+
+    if (roleFilter?.trim()) {
+      params.push(roleFilter.trim().toLowerCase());
+      query += ` AND u.role = $${params.length}`;
+    }
+
+    query += ` ORDER BY u.created_at DESC`;
+
+    const { rows } = await db.query(query, params);
     return rows.map((user) => this.sanitizeUser(user));
   }
 }

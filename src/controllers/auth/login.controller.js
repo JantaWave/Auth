@@ -9,6 +9,7 @@ import {
 } from "../../services/session.service.js";
 import UserModel from "../../models/auth.models.js";
 import dotenv from "dotenv";
+
 dotenv.config();
 
 const MAX_ATTEMPTS = parseInt(process.env.MAX_LOGIN_ATTEMPTS || "5", 10);
@@ -20,10 +21,15 @@ const REFRESH_TOKEN_EXPIRY_DAYS = parseInt(
 
 export const loginUser = asyncHandler(async (req, res) => {
   const { contact, mpin } = req.body;
-  console.log(req);
-  const user = await UserModel.findByMobile(contact);
+  const isAdminRoute = req.path.includes("/admin");
 
+  const user = await UserModel.findByMobile(contact);
   if (!user) throw new ApiError(401, "User not found, Try register.");
+
+  // Check if admin route requires admin role
+  if (isAdminRoute && user.role !== "admin") {
+    throw new ApiError(403, "Access denied. Admin privileges required.");
+  }
 
   if (!user.is_contact_verified) {
     throw new ApiError(
@@ -40,7 +46,6 @@ export const loginUser = asyncHandler(async (req, res) => {
   }
 
   const isValid = await verifyMpin(user.hashed_mpin, mpin);
-
   if (!isValid) {
     const attempts = (user.login_attempts || 0) + 1;
     const lockUntil =
@@ -110,7 +115,7 @@ export const loginUser = asyncHandler(async (req, res) => {
             activeSessionCount: activeSessions.length,
           },
         },
-        "Login successful",
+        isAdminRoute ? "Admin login successful" : "Login successful",
       ),
     );
 });
