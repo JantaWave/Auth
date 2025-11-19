@@ -19,7 +19,7 @@ export const verifyContact = asyncHandler(async (req, res) => {
   // ✅ Get the verification result object
   const verificationResult = await verifyOtp(contact, otp);
 
-  console.log("Verification result:", verificationResult); // Add this to confirm
+  console.log("Verification result:", verificationResult);
 
   // ✅ Check the .success property, not the object itself
   if (!verificationResult.success) {

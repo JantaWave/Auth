@@ -1,6 +1,9 @@
 import express from "express";
 import cors from "cors";
 import routes from "./routes/index.js";
+import routes_OAuth from "./routes/youtubeAuth.js";
+import socialMediaRouter from "./routes/socialMedia.js";
+import liveStreamRouter from "./routes/liveStream.js";
 import cookieParser from "cookie-parser";
 import { deviceInfoMiddleware } from "./middlewares/deviceinfo.middleware.js";
 import dotenv from "dotenv";
@@ -26,6 +29,9 @@ app.use(deviceInfoMiddleware);
 
 // Register routes
 app.use("/api/v1", routes);
+app.use("/api/v1/OAuth", routes_OAuth);
+app.use("/api/v1/social-media", socialMediaRouter);
+app.use("/api/v1/streams", liveStreamRouter);
 
 app.get("/health", (_, res) => res.send("Running server"));
 

@@ -12,6 +12,8 @@ dist-ssr
 *.local
 src/models/SQLQuerry.sql
 src/data
+test.js
+source_files.js
 
 # Editor directories and files
 .vscode/*
