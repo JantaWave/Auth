@@ -6,9 +6,11 @@ import { v4 as uuidv4 } from "uuid";
 let worker = null;
 let router = null;
 
+// store transports by id
+const transports = new Map();
 // store producers by id
 const producers = new Map();
-// sessions map: sessionId -> { audioProducerId, videoProducerId }
+// sessions map: sessionId -> { audio, video, screen }
 const sessions = new Map();
 
 export async function initMediasoup(io) {
@@ -58,8 +60,15 @@ export async function initMediasoup(io) {
           ],
           enableUdp: true,
           enableTcp: true,
-          preferUdp: true,
+          preferUdp: false, // ✅ TCP Preferred for stability
         });
+
+        transports.set(transport.id, transport);
+        transport.on("dtlsstatechange", (dtlsState) => {
+          if (dtlsState === "closed") transports.delete(transport.id);
+        });
+        transport.on("close", () => transports.delete(transport.id));
+
         cb({
           id: transport.id,
           iceParameters: transport.iceParameters,
@@ -76,9 +85,7 @@ export async function initMediasoup(io) {
       "connectTransport",
       async ({ transportId, dtlsParameters }, cb) => {
         try {
-          const t = Array.from(router._transports.values()).find(
-            (tr) => tr.id === transportId,
-          );
+          const t = transports.get(transportId);
           if (!t) throw new Error("transport not found");
           await t.connect({ dtlsParameters });
           cb({ connected: true });
@@ -91,13 +98,12 @@ export async function initMediasoup(io) {
 
     socket.on(
       "produce",
-      async ({ transportId, kind, rtpParameters, sessionId }, cb) => {
+      async ({ transportId, kind, rtpParameters, sessionId, appData }, cb) => {
         try {
-          const t = Array.from(router._transports.values()).find(
-            (tr) => tr.id === transportId,
-          );
+          const t = transports.get(transportId);
           if (!t) throw new Error("transport not found for produce");
           const producer = await t.produce({ kind, rtpParameters });
+
           producers.set(producer.id, {
             id: producer.id,
             producer,
@@ -105,16 +111,21 @@ export async function initMediasoup(io) {
             sessionId,
           });
 
-          // store in sessions
           if (sessionId) {
             const cur = sessions.get(sessionId) || {};
+            const source = appData?.source || kind; // 'camera', 'mic', or 'screen'
+
             if (kind === "audio") cur.audio = producer.id;
-            if (kind === "video") cur.video = producer.id;
+            else if (source === "screen")
+              cur.screen = producer.id; // ✅ Screen
+            else cur.video = producer.id; // ✅ Camera
+
             sessions.set(sessionId, cur);
           }
 
           producer.on("transportclose", () => producers.delete(producer.id));
           producer.on("close", () => producers.delete(producer.id));
+
           cb({ id: producer.id });
         } catch (err) {
           error("produce err", err);
@@ -130,10 +141,6 @@ export async function initMediasoup(io) {
   return { worker, router };
 }
 
-/**
- * Create server-side plain transports to output RTP for the session
- * returns object { audioPort, videoPort }
- */
 export async function createRtpOutputForSession(
   sessionId,
   basePort = parseInt(process.env.RTP_BASE_PORT || "5004", 10),
@@ -143,63 +150,86 @@ export async function createRtpOutputForSession(
 
   const audioPort = basePort;
   const videoPort = basePort + 2;
+  const screenPort = basePort + 4;
 
-  // create plain transport for audio
+  // ✅ FIX: Corrected variable name (CamelCase)
+  let audioPayloadType = 101;
+  let videoPayloadType = 101;
+  let screenPayloadType = 101;
+
+  // 1. Create Transports
   const audioPlain = await router.createPlainTransport({
     listenIp: "127.0.0.1",
     rtcpMux: false,
     comedia: false,
   });
-
-  // create plain transport for video
   const videoPlain = await router.createPlainTransport({
     listenIp: "127.0.0.1",
     rtcpMux: false,
     comedia: false,
   });
+  const screenPlain = await router.createPlainTransport({
+    listenIp: "127.0.0.1",
+    rtcpMux: false,
+    comedia: false,
+  });
 
-  // connect plain transports to the target (FFmpeg UDP receive)
-  await audioPlain.connect({ ip: "127.0.0.1", port: audioPort });
-  await videoPlain.connect({ ip: "127.0.0.1", port: videoPort });
+  // 2. Connect
+  await audioPlain.connect({
+    ip: "127.0.0.1",
+    port: audioPort,
+    rtcpPort: audioPort + 1,
+  });
+  await videoPlain.connect({
+    ip: "127.0.0.1",
+    port: videoPort,
+    rtcpPort: videoPort + 1,
+  });
+  await screenPlain.connect({
+    ip: "127.0.0.1",
+    port: screenPort,
+    rtcpPort: screenPort + 1,
+  });
 
-  // For each producer create a server-side consumer and then produce to plain transport
+  // 3. Consume
   if (s.audio) {
-    const pInfo = producers.get(s.audio);
-    if (!pInfo) throw new Error("audio producer not found");
-    const consumerTransport = (await router.createPipeTransport)
-      ? await router.createPipeTransport()
-      : await router.createPlainTransport({ listenIp: "127.0.0.1" });
-    // create consumer
-    const consumer = await consumerTransport.consume({
+    const c = await audioPlain.consume({
       producerId: s.audio,
       rtpCapabilities: router.rtpCapabilities,
       paused: false,
     });
-    // produce from plain transport to the remote IP (FFmpeg)
-    await audioPlain.produce({
-      kind: consumer.kind,
-      rtpParameters: consumer.rtpParameters,
-    });
+    audioPayloadType = c.rtpParameters.codecs[0].payloadType;
   }
 
   if (s.video) {
-    const pInfo = producers.get(s.video);
-    if (!pInfo) throw new Error("video producer not found");
-    const consumerTransport = (await router.createPipeTransport)
-      ? await router.createPipeTransport()
-      : await router.createPlainTransport({ listenIp: "127.0.0.1" });
-    const consumer = await consumerTransport.consume({
+    const c = await videoPlain.consume({
       producerId: s.video,
       rtpCapabilities: router.rtpCapabilities,
       paused: false,
     });
-    await videoPlain.produce({
-      kind: consumer.kind,
-      rtpParameters: consumer.rtpParameters,
-    });
+    videoPayloadType = c.rtpParameters.codecs[0].payloadType;
+    setInterval(() => c.requestKeyFrame().catch(() => {}), 2000);
   }
 
-  return { audioPort, videoPort };
+  if (s.screen) {
+    const c = await screenPlain.consume({
+      producerId: s.screen,
+      rtpCapabilities: router.rtpCapabilities,
+      paused: false,
+    });
+    screenPayloadType = c.rtpParameters.codecs[0].payloadType;
+    setInterval(() => c.requestKeyFrame().catch(() => {}), 2000);
+  }
+
+  return {
+    audioPort,
+    videoPort,
+    screenPort,
+    audioPayloadType,
+    videoPayloadType,
+    screenPayloadType,
+    hasScreen: !!s.screen,
+  };
 }
 
 export function createSessionId() {
@@ -209,6 +239,7 @@ export function createSessionId() {
 export async function stopSession(sessionId) {
   const s = sessions.get(sessionId);
   if (!s) return;
+
   if (s.audio && producers.has(s.audio)) {
     await producers.get(s.audio).producer.close();
     producers.delete(s.audio);
@@ -217,5 +248,11 @@ export async function stopSession(sessionId) {
     await producers.get(s.video).producer.close();
     producers.delete(s.video);
   }
+  // ✅ FIX: Added Screen Cleanup
+  if (s.screen && producers.has(s.screen)) {
+    await producers.get(s.screen).producer.close();
+    producers.delete(s.screen);
+  }
+
   sessions.delete(sessionId);
 }

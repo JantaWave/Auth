@@ -1,5 +1,6 @@
 {
-  "bannerText": "Desc",
-  "logoUrl": "",
-  "ticker": "Live Now"
+  "title": "Live Stream",
+  "bannerText": "Testing ",
+  "ticker": "Live Now",
+  "logoUrl": ""
 }

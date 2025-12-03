@@ -4,6 +4,7 @@ import { ApiError } from "../utils/ApiError.js";
 
 export const authMiddleware = async (req, res, next) => {
   try {
+    console.log("Auth middleware called");
     const authHeader = req.headers["authorization"];
 
     if (!authHeader?.startsWith("Bearer ")) {
@@ -19,6 +20,7 @@ export const authMiddleware = async (req, res, next) => {
     }
 
     const user = await UserModel.findById(userId);
+    console.log(user);
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }

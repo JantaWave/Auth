@@ -16,18 +16,21 @@ import {
  * @returns {Promise<Boolean>} True if blacklisted successfully
  */
 export async function blacklistToken(token, type = "access") {
-  const decoded = JSON.parse(
-    Buffer.from(token.split(".")[1], "base64").toString(),
-  );
-  if (!decoded?.exp) return false;
+  try {
+    const decoded = JSON.parse(
+      Buffer.from(token.split(".")[1], "base64").toString(),
+    );
+    if (!decoded?.exp) return false;
 
-  const ttl = decoded.exp - Math.floor(Date.now() / 1000);
-  if (ttl > 0) {
-    await redisClient.setEx(`blacklist:${type}:${token}`, ttl, "revoked");
+    const ttl = decoded.exp - Math.floor(Date.now() / 1000);
+    if (ttl > 0) {
+      await redisClient.setEx(`blacklist:${type}:${token}`, ttl, "revoked");
+    }
+    return true;
+  } catch (e) {
+    return false; // Ignore invalid tokens
   }
-  return true;
 }
-
 /**
  * @desc Check if a token is blacklisted
  * @param {String} token - JWT token to check
