@@ -143,7 +143,8 @@ export async function bindStreamToBroadcast(
 }
 
 export const getUserStreams = asyncHandler(async (req, res) => {
-  const userId = req.user.id;
+  console.log("user from stream", req.user);
+  const userId = req.user?.id;
   if (!userId) throw new ApiError(401, "UserId is Required.");
 
   const result = await StreamModel.getAllUserStreams(userId);

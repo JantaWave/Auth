@@ -15,7 +15,7 @@ const router = Router();
 
 const activeSessions = new Map();
 
-router.get("/", authMiddleware, getUserStreams);
+router.get("/", getUserStreams);
 
 /**
  * POST /api/v1/streams/setup

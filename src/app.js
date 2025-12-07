@@ -35,7 +35,7 @@ app.use(deviceInfoMiddleware);
 app.use("/api/v1", routes);
 app.use("/api/v1/OAuth", routes_OAuth);
 app.use("/api/v1/social-media", socialMediaRouter);
-app.use("/api/v1/streams", liveStreamRouter);
+app.use("/api/v1/streams", authMiddleware, liveStreamRouter);
 app.use("/api/v1/upload", uploadRoutes);
 app.use("/api/v1/posts", authMiddleware, postRoutes);
 
