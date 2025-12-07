@@ -9,12 +9,13 @@ import {
   stopStream,
   updateOverlays,
 } from "../controllers/stream/stream.controller.js";
+import { authMiddleware } from "../middlewares/auth.middleware.js";
 
 const router = Router();
 
 const activeSessions = new Map();
 
-router.get("/", getUserStreams);
+router.get("/", authMiddleware, getUserStreams);
 
 /**
  * POST /api/v1/streams/setup

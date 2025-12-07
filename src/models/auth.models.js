@@ -22,7 +22,10 @@ class UserModel {
         u.*,
         v.village_name AS village_normalized,
         b.block_name AS block_normalized,
+        b.block_id AS block_id,
+        d.district_id AS district_id,
         d.district_name AS district_normalized,
+        s.state_id AS state_id,
         s.state_name AS state_normalized
       FROM users u
       LEFT JOIN villages v ON u.village_id = v.village_id
@@ -39,11 +42,14 @@ class UserModel {
   static async findByMobile(contact) {
     const query = `
       SELECT 
-        u.*,
+       u.*,
         v.village_name AS village_normalized,
         b.block_name AS block_normalized,
+        b.block_id AS block_id,
+        d.district_id AS district_id,
         d.district_name AS district_normalized,
-        s.state_name AS state_normalized
+        s.state_id AS state_id,
+        s.state_name AS state_normalized 
       FROM users u
       LEFT JOIN villages v ON u.village_id = v.village_id
       LEFT JOIN blocks b ON v.block_id = b.block_id

@@ -2,73 +2,86 @@
 import express from "express";
 import { db } from "../config/db.js";
 import { authMiddleware } from "../middlewares/auth.middleware.js"; // Assuming you have auth middleware
+import { ensureAccessToken, getTokenRecord } from "../services/tokenMangaer.js";
 
 const router = express.Router();
 
 /**
  * GET /api/v1/social-media/connections
- * Returns which social platforms are connected for the authenticated user
- * Requires: JWT auth middleware to get userId
+ * Automatically refreshes expired tokens (YouTube, Facebook, Instagram)
  */
 router.get("/connections", authMiddleware, async (req, res) => {
   try {
-    const userId = req.user.id; // From JWT middleware
+    const userId = req.user.id;
 
-    console.log("🔍 Fetching connections for userId:", userId);
+    const connections = {
+      youtube: false,
+      facebook: false,
+      instagram: false,
+    };
 
     const client = await db.connect();
+
     try {
-      // Query all connected social accounts for this user
+      // Fetch all social accounts
       const result = await client.query(
         `
-        SELECT provider, provider_user_id, expiry_ts, updated_at, access_token
+        SELECT id, provider, provider_user_id, expiry_ts, access_token, refresh_token
         FROM user_social_accounts
         WHERE user_id = $1
         `,
         [userId],
       );
-      console.log(result.rows);
 
-      console.log("📊 Database query result:", {
-        rowCount: result.rowCount,
-        rows: result.rows.map((r) => {
-          const expiryTs = Number(r.expiry_ts);
-          return {
-            provider: r.provider,
-            has_token: !!r.access_token,
-            expiry_ts: expiryTs,
-            expires_at: new Date(expiryTs).toISOString(),
-          };
-        }),
-      });
-
-      // Build response object
-      const connections = {
-        youtube: false,
-        facebook: false,
-        instagram: false,
-      };
-
-      // Check if tokens are still valid (not expired)
       const now = Date.now();
-      result.rows.forEach((row) => {
-        const expiryTs = Number(row.expiry_ts);
-        const isValid = expiryTs > now;
-        const timeUntilExpiry = expiryTs - now;
 
-        console.log(`🔐 ${row.provider}:`, {
-          isValid,
-          timeUntilExpiryHours: (timeUntilExpiry / (1000 * 60 * 60)).toFixed(2),
-          expiryDate: new Date(expiryTs).toISOString(),
+      for (const row of result.rows) {
+        const provider = row.provider.toLowerCase();
+        const expiry = Number(row.expiry_ts);
+
+        // If token is still valid → mark connected
+        if (expiry > now) {
+          connections[provider] = true;
+          continue;
+        }
+
+        // Otherwise → try refresh using tokenManager
+        console.log(`🔄 Refreshing expired token for: ${provider}`);
+
+        const record = await getTokenRecord({
+          userId,
+          provider,
         });
 
-        if (row.provider === "youtube" && isValid) connections.youtube = true;
-        if (row.provider === "facebook" && isValid) connections.facebook = true;
-        if (row.provider === "instagram" && isValid)
-          connections.instagram = true;
-      });
+        if (!record) {
+          console.log(`⚠ No token record found for provider: ${provider}`);
+          continue;
+        }
 
-      console.log("✅ Returning connections:", connections);
+        // Try refresh via Google or FB or IG
+        const refreshed = await ensureAccessToken(record);
+
+        if (refreshed?.access_token) {
+          console.log(`✅ Successfully refreshed ${provider} token`);
+
+          connections[provider] = true;
+
+          // Update your DB so expiry + tokens stay correct
+          await client.query(
+            `
+            UPDATE user_social_accounts
+            SET access_token = $1,
+                expiry_ts = $2,
+                updated_at = NOW()
+            WHERE id = $3
+            `,
+            [refreshed.access_token, refreshed.expiry_ts, row.id],
+          );
+        } else {
+          console.log(`❌ Failed to refresh token for: ${provider}`);
+          connections[provider] = false;
+        }
+      }
 
       return res.json({
         success: true,
