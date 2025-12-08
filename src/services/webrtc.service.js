@@ -62,20 +62,35 @@ export async function initMediasoup(io) {
         const transport = await router.createWebRtcTransport({
           listenIps: [
             {
-              ip: process.env.MEDIASOUP_LISTEN_IP || "127.0.0.1",
+              ip: process.env.MEDIASOUP_LISTEN_IP || "0.0.0.0",
               announcedIp: process.env.MEDIASOUP_ANNOUNCED_IP || undefined,
             },
           ],
           enableUdp: true,
           enableTcp: true,
-          preferUdp: false, // ✅ TCP Preferred for stability
+          preferUdp: true,
+          initialAvailableOutgoingBitrate: 800000,
+          enableSctp: true,
         });
 
+        // STORE TRANSPORT
         transports.set(transport.id, transport);
-        transport.on("dtlsstatechange", (dtlsState) => {
-          if (dtlsState === "closed") transports.delete(transport.id);
+
+        // ✅ THIS IS REQUIRED!!!
+        transport.on("dtlsstatechange", (state) => {
+          console.log("DTLS STATE:", state);
+
+          if (state === "failed" || state === "closed") {
+            try {
+              transport.close();
+            } catch {}
+          }
         });
-        transport.on("close", () => transports.delete(transport.id));
+
+        // OPTIONAL
+        transport.on("icegatheringstatechange", (state) => {
+          console.log("ICE gathering state", state);
+        });
 
         cb({
           id: transport.id,
@@ -84,7 +99,6 @@ export async function initMediasoup(io) {
           dtlsParameters: transport.dtlsParameters,
         });
       } catch (err) {
-        error("createWebRtcTransport err", err);
         cb({ error: err.toString() });
       }
     });
