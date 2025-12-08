@@ -219,6 +219,25 @@ class FfmpegService {
 
     info("ffmpeg args:", args.join(" "));
     const proc = spawn(FFMPEG, args);
+    proc.stderr.on("data", (chunk) => {
+      // print FFmpeg stderr line-by-line
+      const s = chunk.toString();
+      s.split(/\r?\n/).forEach((line) => {
+        if (line.trim()) console.log(`[FFMPEG STDERR][${sessionId}] ${line}`);
+      });
+    });
+
+    proc.stdout?.on("data", (chunk) => {
+      const s = chunk.toString();
+      s.split(/\r?\n/).forEach((line) => {
+        if (line.trim()) console.log(`[FFMPEG STDOUT][${sessionId}] ${line}`);
+      });
+    });
+
+    proc.on("error", (err) => {
+      console.error(`[FFMPEG ERR][${sessionId}]`, err);
+    });
+
     // ... (standard proc events) ...
 
     proc.on("exit", () => {

@@ -13,6 +13,14 @@ const producers = new Map();
 // sessions map: sessionId -> { audio, video, screen }
 const sessions = new Map();
 
+export function getSessionState(sessionId) {
+  return sessions.get(sessionId) || null;
+}
+
+export function debugSessions() {
+  return [...sessions.entries()];
+}
+
 export async function initMediasoup(io) {
   if (worker) return { worker, router };
 
@@ -116,12 +124,20 @@ export async function initMediasoup(io) {
             const source = appData?.source || kind; // 'camera', 'mic', or 'screen'
 
             if (kind === "audio") cur.audio = producer.id;
-            else if (source === "screen")
-              cur.screen = producer.id; // ✅ Screen
-            else cur.video = producer.id; // ✅ Camera
+            else if (source === "screen") cur.screen = producer.id;
+            else cur.video = producer.id;
 
             sessions.set(sessionId, cur);
           }
+
+          // --- ADDED LOGGING ---
+          console.log(
+            `[mediasoup] produced -> id=${producer.id} kind=${kind} session=${sessionId} source=${appData?.source || "n/a"}`,
+          );
+          console.log(
+            "[mediasoup] sessions:",
+            JSON.stringify([...sessions.entries()]),
+          );
 
           producer.on("transportclose", () => producers.delete(producer.id));
           producer.on("close", () => producers.delete(producer.id));
@@ -152,82 +168,106 @@ export async function createRtpOutputForSession(
   const videoPort = basePort + 2;
   const screenPort = basePort + 4;
 
-  // ✅ FIX: Corrected variable name (CamelCase)
-  let audioPayloadType = 101;
-  let videoPayloadType = 101;
-  let screenPayloadType = 101;
+  let audioPayloadType = null;
+  let videoPayloadType = null;
+  let screenPayloadType = null;
 
-  // 1. Create Transports
+  // 1. Create PlainTransports
   const audioPlain = await router.createPlainTransport({
     listenIp: "127.0.0.1",
     rtcpMux: false,
     comedia: false,
   });
+
   const videoPlain = await router.createPlainTransport({
     listenIp: "127.0.0.1",
     rtcpMux: false,
     comedia: false,
   });
+
   const screenPlain = await router.createPlainTransport({
     listenIp: "127.0.0.1",
     rtcpMux: false,
     comedia: false,
   });
 
-  // 2. Connect
+  // 2. Connect transports to ports
   await audioPlain.connect({
     ip: "127.0.0.1",
     port: audioPort,
     rtcpPort: audioPort + 1,
   });
+
   await videoPlain.connect({
     ip: "127.0.0.1",
     port: videoPort,
     rtcpPort: videoPort + 1,
   });
+
   await screenPlain.connect({
     ip: "127.0.0.1",
     port: screenPort,
     rtcpPort: screenPort + 1,
   });
 
-  // 3. Consume
+  // 3. Consume AUDIO
   if (s.audio) {
-    const c = await audioPlain.consume({
+    const audioConsumer = await audioPlain.consume({
       producerId: s.audio,
       rtpCapabilities: router.rtpCapabilities,
       paused: false,
     });
-    audioPayloadType = c.rtpParameters.codecs[0].payloadType;
+
+    // Extract proper Opus payload type
+    const opusCodec =
+      audioConsumer.rtpParameters.codecs.find((c) =>
+        c.mimeType.toLowerCase().includes("opus"),
+      ) || audioConsumer.rtpParameters.codecs[0];
+
+    audioPayloadType = opusCodec.payloadType;
   }
 
+  // 4. Consume VIDEO
   if (s.video) {
-    const c = await videoPlain.consume({
+    const videoConsumer = await videoPlain.consume({
       producerId: s.video,
       rtpCapabilities: router.rtpCapabilities,
       paused: false,
     });
-    videoPayloadType = c.rtpParameters.codecs[0].payloadType;
-    setInterval(() => c.requestKeyFrame().catch(() => {}), 2000);
+
+    const videoCodec =
+      videoConsumer.rtpParameters.codecs.find((c) =>
+        c.mimeType.toLowerCase().startsWith("video/"),
+      ) || videoConsumer.rtpParameters.codecs[0];
+
+    videoPayloadType = videoCodec.payloadType;
+
+    setInterval(() => videoConsumer.requestKeyFrame().catch(() => {}), 2000);
   }
 
+  // 5. Consume SCREEN SHARE
   if (s.screen) {
-    const c = await screenPlain.consume({
+    const screenConsumer = await screenPlain.consume({
       producerId: s.screen,
       rtpCapabilities: router.rtpCapabilities,
       paused: false,
     });
-    screenPayloadType = c.rtpParameters.codecs[0].payloadType;
-    setInterval(() => c.requestKeyFrame().catch(() => {}), 2000);
+
+    screenPayloadType = screenConsumer.rtpParameters.codecs[0].payloadType;
+
+    setInterval(() => screenConsumer.requestKeyFrame().catch(() => {}), 2000);
   }
 
+  // 6. Return final mapping
   return {
     audioPort,
     videoPort,
     screenPort,
+
     audioPayloadType,
     videoPayloadType,
     screenPayloadType,
+
     hasScreen: !!s.screen,
   };
 }
