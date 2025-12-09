@@ -1,10 +1,7 @@
-// src/services/stream-session.service.js
-
 import {
   initMediasoup,
   createRtpOutputForSession,
   stopSession,
-  debugSessions, // optional
 } from "./webrtc.service.js";
 import { ffmpegService } from "./ffmpeg.service.js";
 import StreamModel from "../models/streams.models.js";
@@ -12,17 +9,23 @@ import StreamModel from "../models/streams.models.js";
 // In-memory cache
 const activeSessions = new Map();
 
+// ✅ EXPORT 'start' FUNCTION
 export async function start(sessionId) {
   const cfg = await loadSession(sessionId);
 
+  // Ensure IO is passed (fallback to global if not passed explicitly)
   await initMediasoup(global.io);
 
   const basePort = 10000 + Math.floor(Math.random() * 5000) * 2;
 
   const ports = await createRtpOutputForSession(sessionId, basePort);
 
-  console.log(`[RTP OUT] creating RTP output for session ${sessionId}`);
-  // console.log("Sessions:", debugSessions()); // safe now
+  // Extract codec name: "video/H264" -> "H264"
+  const codecName = ports.videoCodecMime
+    ? ports.videoCodecMime.split("/")[1]
+    : "H264";
+
+  console.log(`[StreamSession] Starting FFmpeg with codec: ${codecName}`);
 
   const ff = ffmpegService.start(
     sessionId,
@@ -36,6 +39,8 @@ export async function start(sessionId) {
     ports.audioPayloadType,
     ports.screenPayloadType,
     ports.hasScreen,
+    true, // isCameraOn
+    codecName, // ✅ Pass codec name
   );
 
   await StreamModel.updateStatus(sessionId, "live");
@@ -54,12 +59,14 @@ export async function restart(sessionId, isCameraOn) {
 
   ffmpegService.stop(sessionId);
 
-  const basePort = 10000 + Math.random() * 3000;
+  const basePort = 10000 + Math.floor(Math.random() * 5000) * 2;
 
   const ports = await createRtpOutputForSession(sessionId, basePort);
+  const codecName = ports.videoCodecMime
+    ? ports.videoCodecMime.split("/")[1]
+    : "H264";
 
-  console.log(`[RTP OUT] creating RTP output for session ${sessionId}`);
-  // console.log("Sessions:", debugSessions()); // safe debugging
+  console.log(`[StreamSession] Restarting FFmpeg with codec: ${codecName}`);
 
   const ff = ffmpegService.start(
     sessionId,
@@ -74,9 +81,22 @@ export async function restart(sessionId, isCameraOn) {
     ports.screenPayloadType,
     ports.hasScreen,
     isCameraOn,
+    codecName,
   );
 
   return { restarted: true, hasScreen: ports.hasScreen, isCameraOn };
+}
+
+export async function updateOverlays(sessionId, overlays) {
+  // Update local cache if session is active
+  if (activeSessions.has(sessionId)) {
+    const session = activeSessions.get(sessionId);
+    session.overlays = overlays;
+    activeSessions.set(sessionId, session);
+  }
+  // Update the Overlay Service (which writes to the .txt files for FFmpeg)
+  const { overlayService } = await import("./overlay.service.js");
+  overlayService.update(overlays);
 }
 
 async function loadSession(sessionId) {
@@ -93,9 +113,7 @@ async function loadSession(sessionId) {
       instagramKey: row.instagram_key,
       overlays: row.overlays,
     };
-
     activeSessions.set(sessionId, cfg);
   }
-
   return cfg;
 }

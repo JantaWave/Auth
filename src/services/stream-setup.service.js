@@ -33,15 +33,16 @@ export async function setup(payload) {
 
     const { access_token } = await ensureAccessToken(record);
 
-    const { broadcast, stream, ingestUrl } =
-      await YouTubeService.createYouTubeStream(
-        access_token,
-        title,
-        description,
-        scheduledStartTime,
-      );
+    const youTubeData = await YouTubeService.createYouTubeStream(
+      access_token,
+      title,
+      description,
+      scheduledStartTime,
+    );
 
+    const { broadcast, stream, ingestUrl } = youTubeData;
     youtubeKey = ingestUrl;
+    console.log("youtubeKey", youtubeKey);
     youtubeStreamKey = stream.cdn.ingestionInfo.streamName;
     shareUrls.youtube = `https://www.youtube.com/watch?v=${broadcast.id}`;
   }
@@ -66,7 +67,7 @@ export async function setup(payload) {
     description,
     thumbnailUrl: overlays?.logoUrl || null,
     scheduledStartTime,
-    youtubeKey: youtubeStreamKey,
+    youtubeKey: youtubeKey,
     facebookKey,
     instagramKey,
     overlays,

@@ -22,7 +22,7 @@ export async function createLiveBroadcast(
         },
         contentDetails: {
           enableAutoStart: true,
-          enableAutoStop: false,
+          enableAutoStop: true, // ensure auto stop also works
         },
       },
       { headers: { Authorization: `Bearer ${accessToken}` } },
@@ -49,10 +49,13 @@ export async function createLiveStream(accessToken, { title, description }) {
         snippet: { title, description },
         cdn: {
           ingestionType: "rtmp",
-          resolution: "variable",
-          frameRate: "variable",
+          resolution: "1080p",
+          frameRate: "60fps",
         },
-        contentDetails: { isReusable: false },
+        contentDetails: {
+          isReusable: false,
+          enableAutoStart: true,
+        },
       },
       { headers: { Authorization: `Bearer ${accessToken}` } },
     );
@@ -92,7 +95,25 @@ export async function bindStreamToBroadcast(
 }
 
 /**
- * Combined: Create Broadcast + Stream + Bind → Return RTMP URL
+ * Normalize YouTube ingest URL to always end with /live2/STREAM_KEY
+ */
+function buildSafeYouTubeIngestUrl(ingestionAddress, streamName) {
+  // 1. Remove query parameters
+  let baseUrl = ingestionAddress.split("?")[0];
+
+  // 2. Remove trailing slashes
+  baseUrl = baseUrl.replace(/\/+$/, "");
+
+  // 3. Ensure it ends in /live2
+  if (!baseUrl.endsWith("/live2")) {
+    baseUrl = baseUrl + "/live2";
+  }
+
+  // 4. Return correct RTMP URL
+  return `${baseUrl}/${streamName}`;
+}
+/**
+ * Combined: Create Broadcast + Stream + Bind → Return Safe RTMP URL
  */
 export async function createYouTubeStream(
   accessToken,
@@ -100,20 +121,17 @@ export async function createYouTubeStream(
   description,
   scheduledStartTime,
 ) {
-  // 1. Create Broadcast
   const broadcast = await createLiveBroadcast(accessToken, {
     title,
     description,
     scheduledStartTime,
   });
 
-  // 2. Create Stream
   const stream = await createLiveStream(accessToken, {
     title: `${title} Stream`,
     description,
   });
 
-  // 3. Bind Stream → Broadcast
   await bindStreamToBroadcast(accessToken, {
     broadcastId: broadcast.id,
     streamId: stream.id,
@@ -125,9 +143,14 @@ export async function createYouTubeStream(
 
   const { ingestionAddress, streamName } = stream.cdn.ingestionInfo;
 
+  // ✅ USE THE FIXED FUNCTION
+  const ingestUrl = buildSafeYouTubeIngestUrl(ingestionAddress, streamName);
+
+  console.log("🎯 Final YouTube RTMP URL:", ingestUrl);
+
   return {
     broadcast,
     stream,
-    ingestUrl: `${ingestionAddress}/${streamName}`,
+    ingestUrl,
   };
 }

@@ -621,11 +621,11 @@
 // });
 //
 
-// src/controllers/stream.controller.js
 import { asyncHandler } from "../../utils/asyncHandler.js";
 import { ApiError } from "../../utils/ApiError.js";
 import { ApiResponse } from "../../utils/ApiResponse.js";
 
+// Import Services
 import * as StreamSetupService from "../../services/stream-setup.service.js";
 import * as StreamSessionService from "../../services/stream-session.service.js";
 import StreamModel from "../../models/streams.models.js";
@@ -659,7 +659,25 @@ export const setupStream = asyncHandler(async (req, res) => {
  * POST /streams/start
  */
 export const startStream = asyncHandler(async (req, res) => {
-  const result = await StreamSessionService.start(req.body.sessionId);
+  const { sessionId } = req.body;
+
+  if (!sessionId) {
+    throw new ApiError(400, "Session ID is required to start stream");
+  }
+
+  // Debug log to confirm import works
+  if (typeof StreamSessionService.start !== "function") {
+    console.error(
+      "[Controller Error] StreamSessionService exports:",
+      StreamSessionService,
+    );
+    throw new ApiError(
+      500,
+      "Server internal error: StreamSessionService.start is missing",
+    );
+  }
+
+  const result = await StreamSessionService.start(sessionId);
 
   return res.status(200).json(new ApiResponse(200, result, "Stream started"));
 });
@@ -668,7 +686,10 @@ export const startStream = asyncHandler(async (req, res) => {
  * POST /streams/stop
  */
 export const stopStream = asyncHandler(async (req, res) => {
-  await StreamSessionService.stop(req.body.sessionId);
+  const { sessionId } = req.body;
+  if (!sessionId) throw new ApiError(400, "Session ID is required");
+
+  await StreamSessionService.stop(sessionId);
 
   return res
     .status(200)
@@ -679,10 +700,9 @@ export const stopStream = asyncHandler(async (req, res) => {
  * POST /streams/restart
  */
 export const restartStream = asyncHandler(async (req, res) => {
-  const result = await StreamSessionService.restart(
-    req.body.sessionId,
-    req.body.isCameraOn,
-  );
+  const { sessionId, isCameraOn } = req.body;
+
+  const result = await StreamSessionService.restart(sessionId, isCameraOn);
 
   return res.status(200).json(new ApiResponse(200, result, "Stream restarted"));
 });

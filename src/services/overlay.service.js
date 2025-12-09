@@ -1,13 +1,17 @@
 // src/services/overlay.service.js
 import fs from "fs";
 import path from "path";
-import os from "os";
 import { info } from "../utils/logger.js";
 
 const OVERLAY_FILE = path.resolve(process.cwd(), "overlays.json");
 
-// 🔥 Use OS-provided temp directory (always writable)
-const TMP_DIR = os.tmpdir();
+// TMP_DIR must be explicitly set in .env or docker-compose
+const TMP_DIR = process.env.TMP_DIR;
+if (!TMP_DIR) {
+  throw new Error(
+    "❌ TMP_DIR is not set! Please define TMP_DIR=/app/tmp in .env",
+  );
+}
 
 function ensureDir(dir) {
   if (!fs.existsSync(dir)) {
@@ -24,15 +28,13 @@ class OverlayService {
       logoUrl: "",
     };
 
-    // Load persistent overlay config
+    // Load overlay.json if exists
     if (fs.existsSync(OVERLAY_FILE)) {
       try {
-        this.state = {
-          ...this.state,
-          ...JSON.parse(fs.readFileSync(OVERLAY_FILE, "utf8")),
-        };
-      } catch (e) {
-        console.error("Failed to read overlays.json:", e);
+        const file = fs.readFileSync(OVERLAY_FILE, "utf8");
+        this.state = { ...this.state, ...JSON.parse(file) };
+      } catch (err) {
+        console.error("Failed to read overlays.json:", err);
       }
     }
 
@@ -54,22 +56,15 @@ class OverlayService {
     fs.writeFileSync(OVERLAY_FILE, JSON.stringify(this.state, null, 2), "utf8");
   }
 
-  // Write overlay texts to temp files for FFmpeg
   syncFiles() {
     try {
-      fs.writeFileSync(path.join(TMP_DIR, "title.txt"), this.state.title || "");
-      fs.writeFileSync(
-        path.join(TMP_DIR, "banner.txt"),
-        this.state.bannerText || "",
-      );
-      fs.writeFileSync(
-        path.join(TMP_DIR, "ticker.txt"),
-        this.state.ticker || "",
-      );
+      fs.writeFileSync(path.join(TMP_DIR, "title.txt"), this.state.title);
+      fs.writeFileSync(path.join(TMP_DIR, "banner.txt"), this.state.bannerText);
+      fs.writeFileSync(path.join(TMP_DIR, "ticker.txt"), this.state.ticker);
 
-      info(`overlay: synced text files to ${TMP_DIR}`);
-    } catch (e) {
-      console.error("Failed to write overlay text files:", e);
+      info(`overlay: synced text files into ${TMP_DIR}`);
+    } catch (err) {
+      console.error("Failed to write overlay temp files:", err);
     }
   }
 }

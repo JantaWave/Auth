@@ -14,6 +14,6 @@ services:
 
     # Persist temporary files (FFmpeg SDPs, Overlay text files)
     volumes:
-      - /tmp:/tmp
+      - ./runtime/tmp:/app/tmp
       # Optional: If you want logs to persist outside container
       # - ./logs:/app/logs
