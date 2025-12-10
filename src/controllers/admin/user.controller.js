@@ -29,6 +29,7 @@ export const getAuthStats = async (req, res) => {
       totalUsers: userCount.total,
       totalLeaders: userCount.leaders,
     };
+    console.log(data);
 
     return res
       .status(200)

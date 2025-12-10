@@ -215,7 +215,7 @@ class UserModel {
     const query = `
     SELECT
       COUNT(*) AS total_user,
-      SUM(CASE WHEN role = 'streamer' THEN 1 ELSE 0 END) AS total_leader
+      SUM(CASE WHEN role = 'leader' THEN 1 ELSE 0 END) AS total_leader
     FROM users;
   `;
     const { rows } = await db.query(query);
