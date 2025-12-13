@@ -12,9 +12,9 @@ const S3 = new S3Client({
   },
 });
 
-export const generatePresignedUrl = async (fileName, fileType) => {
+export const generatePresignedUrl = async (fileName, fileType, type) => {
   const extension = path.extname(fileName);
-  const key = `posts/${uuidv4()}${extension}`; // Unique filename
+  const key = `${type}/${uuidv4()}${extension}`; // Unique filename
 
   const command = new PutObjectCommand({
     Bucket: process.env.R2_BUCKET_NAME,

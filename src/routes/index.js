@@ -36,6 +36,11 @@ import {
   getAuthStats,
 } from "../controllers/admin/user.controller.js";
 import { jsonUploadAddress } from "../controllers/admin/address.controller.js";
+import {
+  getUserProfile,
+  searchLeaders,
+} from "../controllers/user/searchLeader.controller.js";
+import { followUser, unfollowUser } from "../controllers/community/social.js";
 
 const router = Router();
 
@@ -82,6 +87,10 @@ router.post("/logout-from-all-devices", authMiddleware, logoutFromAllDevices);
 // User Profile
 router.get("/user/profile", authMiddleware, getProfile);
 router.patch("/user/profile", authMiddleware, updateProfile);
+router.get("/user/:userId/profile", authMiddleware, getUserProfile);
+router.post("/user/:id/follow", authMiddleware, followUser);
+router.post("/user/:id/unfollow", authMiddleware, unfollowUser);
+router.get("/search/leaders", authMiddleware, searchLeaders);
 
 // ==================== ADMIN ROUTES ====================
 

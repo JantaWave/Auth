@@ -23,7 +23,7 @@ export const loginUser = asyncHandler(async (req, res) => {
   const { contact, mpin } = req.body;
   const isAdminRoute = req.path.includes("/admin");
 
-  const user = await UserModel.findByMobile(contact);
+  const user = await UserModel.findByMobileRaw(contact);
   if (!user) throw new ApiError(401, "User not found, Try register.");
 
   // Check if admin route requires admin role
@@ -107,6 +107,13 @@ export const loginUser = asyncHandler(async (req, res) => {
             is_online: user.is_online,
             dob: user.date_of_birth,
             village_id: user.village_id,
+            block_id: user.block_id,
+            district_id: user.district_id,
+            state_id: user.state_id,
+            village_name: user.village_normalized,
+            block_name: user.block_normalized,
+            district_name: user.district_normalized,
+            state_name: user.state_normalized,
             gender: user.gender,
           },
           tokens: { accessToken, refreshToken },

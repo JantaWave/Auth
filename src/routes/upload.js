@@ -7,12 +7,12 @@ const router = Router();
 router.post(
   "/presigned-url",
   asyncHandler(async (req, res) => {
-    const { fileName, fileType } = req.body;
-    if (!fileName || !fileType) {
+    const { fileName, fileType, type } = req.body;
+    if (!fileName || !fileType || !type) {
       return res.status(400).json({ error: "Missing fileName or fileType" });
     }
     try {
-      const data = await generatePresignedUrl(fileName, fileType);
+      const data = await generatePresignedUrl(fileName, fileType, type);
       res.json(data);
     } catch (error) {
       console.error("Error generating presigned URL:", error);

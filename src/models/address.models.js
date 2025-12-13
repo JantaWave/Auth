@@ -1,73 +1,72 @@
 import { db } from "../config/db.js";
 
 class AddressModel {
-  // Internal helper to fetch a single row
   static async _single(query, params) {
     const { rows } = await db.query(query, params);
     return rows[0] || null;
   }
 
-  // Find or create state
-  static async getOrCreateState(stateName) {
+  // STATE
+  static async getOrCreateState(name) {
     const state = await this._single(
-      "SELECT state_id FROM states WHERE state_name = $1",
-      [stateName.trim()],
+      `SELECT state_id FROM states WHERE state_name = $1`,
+      [name.trim()],
     );
     if (state) return state.state_id;
 
-    const newState = await this._single(
-      "INSERT INTO states (state_name) VALUES ($1) RETURNING state_id",
-      [stateName.trim()],
+    const created = await this._single(
+      `INSERT INTO states (state_name) VALUES ($1) RETURNING state_id`,
+      [name.trim()],
     );
-    return newState.state_id;
+    return created.state_id;
   }
 
-  // Find or create district
-  static async getOrCreateDistrict(districtName, stateId) {
+  // DISTRICT
+  static async getOrCreateDistrict(name, stateId) {
     const district = await this._single(
-      "SELECT district_id FROM districts WHERE district_name = $1 AND state_id = $2",
-      [districtName.trim(), stateId],
+      `SELECT district_id FROM districts WHERE district_name = $1 AND state_id = $2`,
+      [name.trim(), stateId],
     );
     if (district) return district.district_id;
 
-    const newDistrict = await this._single(
-      "INSERT INTO districts (district_name, state_id) VALUES ($1, $2) RETURNING district_id",
-      [districtName.trim(), stateId],
+    const created = await this._single(
+      `INSERT INTO districts (district_name, state_id) VALUES ($1, $2) RETURNING district_id`,
+      [name.trim(), stateId],
     );
-    return newDistrict.district_id;
+    return created.district_id;
   }
 
-  // Find or create block
-  static async getOrCreateBlock(blockName, districtId) {
+  // BLOCK
+  static async getOrCreateBlock(name, districtId) {
     const block = await this._single(
-      "SELECT block_id FROM blocks WHERE block_name = $1 AND district_id = $2",
-      [blockName.trim(), districtId],
+      `SELECT block_id FROM blocks WHERE block_name = $1 AND district_id = $2`,
+      [name.trim(), districtId],
     );
     if (block) return block.block_id;
 
-    const newBlock = await this._single(
-      "INSERT INTO blocks (block_name, district_id) VALUES ($1, $2) RETURNING block_id",
-      [blockName.trim(), districtId],
+    const created = await this._single(
+      `INSERT INTO blocks (block_name, district_id) VALUES ($1, $2) RETURNING block_id`,
+      [name.trim(), districtId],
     );
-    return newBlock.block_id;
+    return created.block_id;
   }
 
-  // Find or create village
-  static async getOrCreateVillage(villageName, blockId) {
+  // VILLAGE
+  static async getOrCreateVillage(name, blockId) {
     const village = await this._single(
-      "SELECT village_id FROM villages WHERE village_name = $1 AND block_id = $2",
-      [villageName.trim(), blockId],
+      `SELECT village_id FROM villages WHERE village_name = $1 AND block_id = $2`,
+      [name.trim(), blockId],
     );
     if (village) return village.village_id;
 
-    const newVillage = await this._single(
-      "INSERT INTO villages (village_name, block_id) VALUES ($1, $2) RETURNING village_id",
-      [villageName.trim(), blockId],
+    const created = await this._single(
+      `INSERT INTO villages (village_name, block_id) VALUES ($1, $2) RETURNING village_id`,
+      [name.trim(), blockId],
     );
-    return newVillage.village_id;
+    return created.village_id;
   }
 
-  // Get or create complete address hierarchy and return village_id
+  // Resolve full address hierarchy
   static async resolveAddress(state, district, block, village) {
     const stateId = await this.getOrCreateState(state);
     const districtId = await this.getOrCreateDistrict(district, stateId);
@@ -76,7 +75,7 @@ class AddressModel {
     return villageId;
   }
 
-  // Get complete address details by village_id
+  // Get address by village ID
   static async getAddressByVillageId(villageId) {
     const query = `
       SELECT 
@@ -97,8 +96,8 @@ class AddressModel {
     return await this._single(query, [villageId]);
   }
 
-  // Search villages by name (partial match)
-  static async searchVillages(searchTerm, limit = 10) {
+  // Search villages
+  static async searchVillages(term, limit = 10) {
     const query = `
       SELECT 
         v.village_id,
@@ -113,84 +112,64 @@ class AddressModel {
       WHERE v.village_name ILIKE $1
       LIMIT $2
     `;
-    const { rows } = await db.query(query, [`%${searchTerm}%`, limit]);
+    const { rows } = await db.query(query, [`%${term}%`, limit]);
     return rows;
   }
 
-  // Get all villages in a block
   static async getVillagesByBlock(blockId) {
-    const query = `
-      SELECT village_id, village_name
-      FROM villages
-      WHERE block_id = $1
-      ORDER BY village_name
-    `;
-    const { rows } = await db.query(query, [blockId]);
+    const { rows } = await db.query(
+      `SELECT village_id, village_name FROM villages WHERE block_id = $1 ORDER BY village_name`,
+      [blockId],
+    );
     return rows;
   }
 
-  // Get all blocks in a district
   static async getBlocksByDistrict(districtId) {
-    const query = `
-      SELECT block_id, block_name
-      FROM blocks
-      WHERE district_id = $1
-      ORDER BY block_name
-    `;
-    const { rows } = await db.query(query, [districtId]);
+    const { rows } = await db.query(
+      `SELECT block_id, block_name FROM blocks WHERE district_id = $1 ORDER BY block_name`,
+      [districtId],
+    );
     return rows;
   }
 
-  // Get all districts in a state
   static async getDistrictsByState(stateId) {
-    const query = `
-      SELECT district_id, district_name
-      FROM districts
-      WHERE state_id = $1
-      ORDER BY district_name
-    `;
-    const { rows } = await db.query(query, [stateId]);
+    const { rows } = await db.query(
+      `SELECT district_id, district_name FROM districts WHERE state_id = $1 ORDER BY district_name`,
+      [stateId],
+    );
     return rows;
   }
 
-  // 1️⃣ Get all states
   static async getAllStates() {
-    const query = `
-      SELECT state_id, state_name, created_at
-      FROM states
-      ORDER BY state_name;
-    `;
-    const { rows } = await db.query(query);
+    const { rows } = await db.query(
+      `SELECT state_id, state_name, created_at FROM states ORDER BY state_name;`,
+    );
     return rows;
   }
 
-  // 2️⃣ Get all districts (joined with state)
   static async getAllDistricts() {
-    const query = `
-     SELECT 
+    const { rows } = await db.query(`
+      SELECT 
         d.district_id AS id,
         d.district_name AS name,
         d.created_at,
         s.state_id,
-        s.state_name AS state_name
+        s.state_name
       FROM districts d
-      LEFT JOIN states s ON s.state_id = d.state_id
-      ORDER BY s.state_name, d.district_name; 
-    `;
-    const { rows } = await db.query(query);
+      LEFT JOIN states s ON d.state_id = s.state_id
+      ORDER BY s.state_name, d.district_name;
+    `);
     return rows.map((r) => ({
       id: r.id,
       name: r.name,
-      code: r.code,
       created_at: r.created_at,
       state: { id: r.state_id, name: r.state_name },
     }));
   }
 
-  // 3️⃣ Get all blocks (joined with district and state)
   static async getAllBlocks() {
-    const query = `
-     SELECT 
+    const { rows } = await db.query(`
+      SELECT 
         b.block_id AS id,
         b.block_name AS name,
         b.created_at,
@@ -201,13 +180,12 @@ class AddressModel {
       FROM blocks b
       LEFT JOIN districts d ON d.district_id = b.district_id
       LEFT JOIN states s ON s.state_id = d.state_id
-      ORDER BY s.state_name, d.district_name, b.block_name; 
-    `;
-    const { rows } = await db.query(query);
+      ORDER BY s.state_name, d.district_name, b.block_name;
+    `);
+
     return rows.map((r) => ({
       id: r.id,
       name: r.name,
-      code: r.code,
       created_at: r.created_at,
       district: {
         id: r.district_id,
@@ -217,10 +195,9 @@ class AddressModel {
     }));
   }
 
-  // 4️⃣ Get all villages (joined with block → district → state)
   static async getAllVillages() {
-    const query = `
-     SELECT 
+    const { rows } = await db.query(`
+      SELECT 
         v.village_id AS id,
         v.village_name AS name,
         v.created_at,
@@ -234,13 +211,12 @@ class AddressModel {
       LEFT JOIN blocks b ON b.block_id = v.block_id
       LEFT JOIN districts d ON d.district_id = b.district_id
       LEFT JOIN states s ON s.state_id = d.state_id
-      ORDER BY s.state_name, d.district_name, b.block_name, v.village_name; 
-    `;
-    const { rows } = await db.query(query);
+      ORDER BY s.state_name, d.district_name, b.block_name, v.village_name;
+    `);
+
     return rows.map((r) => ({
       id: r.id,
       name: r.name,
-      code: r.code,
       created_at: r.created_at,
       block: {
         id: r.block_id,
@@ -255,9 +231,10 @@ class AddressModel {
   }
 
   static async getAllVillagesCount() {
-    const querry = `SELECT COUNT(*) AS village_count FROM villages;`;
-    const { rows } = await db.query(querry);
-    return rows;
+    const { rows } = await db.query(
+      `SELECT COUNT(*) AS village_count FROM villages`,
+    );
+    return rows[0];
   }
 }
 
