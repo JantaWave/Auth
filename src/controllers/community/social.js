@@ -1,4 +1,4 @@
-import UserModel from "../../models/auth.models.js";
+import CommunityModel from "../../models/community.models.js";
 import { ApiError } from "../../utils/ApiError.js";
 import { ApiResponse } from "../../utils/ApiResponse.js";
 import { asyncHandler } from "../../utils/asyncHandler.js";
@@ -13,7 +13,7 @@ export const followUser = asyncHandler(async (req, res) => {
     throw new ApiError(400, "You cannot follow yourself");
   }
 
-  await UserModel.follow(followerId, targetUserId);
+  await CommunityModel.follow(followerId, targetUserId);
 
   return res
     .status(200)
@@ -25,9 +25,28 @@ export const unfollowUser = asyncHandler(async (req, res) => {
   const { id: targetUserId } = req.params;
   const followerId = req.user.id;
 
-  await UserModel.unfollow(followerId, targetUserId);
+  await CommunityModel.unfollow(followerId, targetUserId);
 
   return res
     .status(200)
     .json(new ApiResponse(200, null, "User unfollowed successfully"));
+});
+
+export const getUserFollower = asyncHandler(async (req, res) => {
+  const userId = req.user.id;
+  if (!userId) throw new ApiError(400, "Unauthorised access.");
+  const followers = await CommunityModel.getUserFollowers(userId);
+  console.log("Followers", followers);
+  return res
+    .status(200)
+    .json(new ApiResponse(200, followers, "Followers fetched successfully."));
+});
+
+export const getUserFollowings = asyncHandler(async (req, res) => {
+  const userId = req.user.id;
+  if (!userId) throw new ApiError(400, "Unauthorised access.");
+  const followings = await CommunityModel.getUserFollowings(userId);
+  return res
+    .status(200)
+    .json(new ApiResponse(200, followings, "Followings fetched successfully."));
 });

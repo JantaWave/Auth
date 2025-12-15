@@ -108,6 +108,48 @@ class PostModel {
 
     return comments;
   }
+
+  static async getPostForUsers(userId) {
+    const posts = await this._many(
+      `SELECT
+        p.*,
+        u.id AS author_id,
+        u.first_name,
+        u.last_name,
+        u.avatar_url,
+        b.block_id
+
+        FROM posts p
+        JOIN users u ON u.id = p.user_id
+          JOIN villages v_leader ON v_leader.village_id = u.village_id
+          JOIN blocks b ON b.block_id = v_leader.block_id
+
+        WHERE u.role = 'leader'
+        AND (
+          -- Condition 1: same block
+          b.block_id = (
+            SELECT v_user.block_id
+            FROM users u_user
+          JOIN villages v_user ON v_user.village_id = u_user.village_id
+            WHERE id = $1
+          )
+
+          OR
+
+          -- Condition 2: user follows leader
+          EXISTS (
+            SELECT 1
+            FROM follows f
+            WHERE f.follower_id = $1
+              AND f.following_id = u.id
+          )
+        )
+
+        ORDER BY p.created_at DESC;`,
+      [userId],
+    );
+    return posts;
+  }
 }
 
 export default PostModel;

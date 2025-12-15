@@ -18,28 +18,23 @@ class CommunityModel {
    * followerId → logged-in user
    * followingId → target user
    */
-  static async follow(followerId, followingId) {
-    await db.query(
-      `INSERT INTO follows (follower_id, following_id)
-       VALUES ($1, $2)
-       ON CONFLICT DO NOTHING`,
-      [followerId, followingId],
-    );
-
-    return { success: true };
+  static async follow(followerId, targetUserId) {
+    const query = `
+      INSERT INTO follows (follower_id, following_id)
+      VALUES ($1, $2)
+      ON CONFLICT (follower_id, following_id) DO NOTHING
+      RETURNING id;
+    `;
+    return await this._single(query, [followerId, targetUserId]);
   }
 
-  /**
-   * UNFOLLOW USER
-   */
-  static async unfollow(followerId, followingId) {
-    await db.query(
-      `DELETE FROM follows 
-       WHERE follower_id = $1 AND following_id = $2`,
-      [followerId, followingId],
-    );
-
-    return { success: true };
+  static async unfollow(followerId, targetUserId) {
+    const query = `
+      DELETE FROM follows 
+      WHERE follower_id = $1 AND following_id = $2
+      RETURNING id;
+    `;
+    return await this._single(query, [followerId, targetUserId]);
   }
 
   /**
@@ -47,7 +42,18 @@ class CommunityModel {
    */
   static async getUserFollowers(userId) {
     return await this._many(
-      `SELECT follower_id FROM follows WHERE following_id = $1`,
+      `
+    SELECT
+      u.id,
+      u.first_name,
+      u.last_name,
+      u.avatar_url,
+      u.role
+    FROM follows f
+    JOIN users u ON u.id = f.follower_id
+    WHERE f.following_id = $1
+    ORDER BY f.created_at DESC
+    `,
       [userId],
     );
   }
@@ -57,7 +63,25 @@ class CommunityModel {
    */
   static async getUserFollowings(userId) {
     return await this._many(
-      `SELECT following_id FROM follows WHERE follower_id = $1`,
+      `
+    SELECT
+      u.id,
+      u.first_name,
+      u.last_name,
+      u.avatar_url,
+      u.role
+    FROM follows f
+    JOIN users u ON u.id = f.following_id
+    WHERE f.follower_id = $1
+    ORDER BY f.created_at DESC
+    `,
+      [userId],
+    );
+  }
+
+  static async getProfileStats(userId) {
+    return await this._single(
+      `SELECT * FROM leader_profile_stats lps WHERE lps.user_id=$1`,
       [userId],
     );
   }

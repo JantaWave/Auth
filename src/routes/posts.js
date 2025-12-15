@@ -5,6 +5,7 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import {
   createPost,
+  getPostsForUser,
   getUserPost,
   likeOrDislikePost,
 } from "../controllers/post/posts.controller.js";
@@ -22,6 +23,7 @@ router.post("/create", createPost);
  * Fetch all posts for a user
  */
 router.get("/user/:userId", getUserPost);
+router.get("/user", getPostsForUser);
 
 router.post("/:postId/:userId/like", likeOrDislikePost);
 

@@ -722,3 +722,14 @@ export const updateOverlays = asyncHandler(async (req, res) => {
     .status(200)
     .json(new ApiResponse(200, { updated: true }, "Overlay updated"));
 });
+
+export const getStreamsForUser = asyncHandler(async (req, res) => {
+  const userId = req.user?.id;
+  if (!userId) throw new ApiError(401, "Unauthorized request");
+
+  const streams = await StreamModel.getStreamsForUser(userId);
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, streams, "Streams fetched successfully"));
+});

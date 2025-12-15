@@ -29,6 +29,7 @@ import {
 } from "../controllers/auth/verifyContact.controller.js";
 import {
   getProfile,
+  getProfileStats,
   updateProfile,
 } from "../controllers/user/profile.controller.js";
 import {
@@ -40,7 +41,12 @@ import {
   getUserProfile,
   searchLeaders,
 } from "../controllers/user/searchLeader.controller.js";
-import { followUser, unfollowUser } from "../controllers/community/social.js";
+import {
+  followUser,
+  getUserFollower,
+  getUserFollowings,
+  unfollowUser,
+} from "../controllers/community/social.js";
 
 const router = Router();
 
@@ -87,9 +93,12 @@ router.post("/logout-from-all-devices", authMiddleware, logoutFromAllDevices);
 // User Profile
 router.get("/user/profile", authMiddleware, getProfile);
 router.patch("/user/profile", authMiddleware, updateProfile);
+router.get("/user/profile/stats", authMiddleware, getProfileStats);
 router.get("/user/:userId/profile", authMiddleware, getUserProfile);
 router.post("/user/:id/follow", authMiddleware, followUser);
 router.post("/user/:id/unfollow", authMiddleware, unfollowUser);
+router.get("/user/followers", authMiddleware, getUserFollower);
+router.get("/user/followings", authMiddleware, getUserFollowings);
 router.get("/search/leaders", authMiddleware, searchLeaders);
 
 // ==================== ADMIN ROUTES ====================

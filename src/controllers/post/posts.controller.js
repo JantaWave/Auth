@@ -69,3 +69,13 @@ export const likeOrDislikePost = asyncHandler(async (req, res) => {
       ),
     );
 });
+
+export const getPostsForUser = asyncHandler(async (req, res) => {
+  const userId = req?.user.id;
+  if (!userId) throw new ApiError(400, "unauthorised request");
+  const posts = await PostModel.getPostForUsers(userId);
+  console.log(posts);
+  return res
+    .status(200)
+    .json(new ApiResponse(200, posts, "posts feched successfully."));
+});

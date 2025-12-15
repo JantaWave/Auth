@@ -3,6 +3,7 @@ import { ApiResponse } from "../../utils/ApiResponse.js";
 import { ApiError } from "../../utils/ApiError.js";
 import UserModel from "../../models/auth.models.js";
 import { getUserActiveSessions } from "../../services/session.service.js";
+import CommunityModel from "../../models/community.models.js";
 
 /**
  * @desc Get user profile
@@ -149,4 +150,16 @@ export const updateProfile = asyncHandler(async (req, res) => {
       "Profile updated successfully",
     ),
   );
+});
+
+export const getProfileStats = asyncHandler(async (req, res) => {
+  const userId = req.user.id;
+  if (!userId) throw new ApiError(400, "Not Authorised.");
+  const data = await CommunityModel.getProfileStats(userId);
+  console.log(data);
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(200, data, "Profile statistics fetched successfully."),
+    );
 });
