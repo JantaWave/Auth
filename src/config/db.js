@@ -1,25 +1,16 @@
 import dotenv from "dotenv";
 dotenv.config();
 
-import { Pool } from "pg";
+import { Pool, neonConfig } from "@neondatabase/serverless";
+import ws from "ws";
 
-const { PGHOST, PGDATABASE, PGUSER, PGPASSWORD, PGPORT } = process.env;
+neonConfig.webSocketConstructor = ws;
 
 export const db = new Pool({
-  host: PGHOST,
-  database: PGDATABASE,
-  user: PGUSER, // <— must be 'user', not 'username'
-  password: PGPASSWORD,
-  port: Number(PGPORT) || 5432,
+  connectionString: process.env.DATABASE_URL,
   ssl: true,
-});
 
-// quick test
-(async () => {
-  try {
-    const result = await db.query("SELECT version()");
-    console.log("Connected to Neon:", result.rows[0]);
-  } catch (err) {
-    console.error("Error connecting to Neon:", err);
-  }
-})();
+  max: 5,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 10000, // increase a bit for cold start
+});

@@ -71,38 +71,48 @@ class StreamModel {
   static async getStreamsForUser(userId) {
     return this._many(
       `SELECT
-        s.*,
-        u.id AS author_id,
-        u.first_name,
-        u.last_name,
-        u.avatar_url,
-        b.block_id
-
-      FROM streams s
-      JOIN users u ON u.id = s.user_id
-      JOIN villages v_leader ON v_leader.village_id = u.village_id
-      JOIN blocks b ON b.block_id = v_leader.block_id
-
-      WHERE u.role = 'leader'
-        AND (
-          -- Same block
-          b.block_id = (
-            SELECT v_user.block_id
-            FROM users u_user
-            JOIN villages v_user ON v_user.village_id = u_user.village_id
-            WHERE u_user.id = $1
-          )
-          OR
-          -- Followed leader
-          EXISTS (
-            SELECT 1
-            FROM follows f
-            WHERE f.follower_id = $1
-              AND f.following_id = u.id
-          )
+      s.id,
+      s.title,
+      s.status,
+      s.scheduled_start_time,
+      s.thumbnail_url,
+      COALESCE(s.share_urls, '{}'::jsonb) AS share_urls, 
+      s.user_id,
+      s.created_at,
+      u.first_name,
+      u.last_name,
+      u.avatar_url,
+      b.block_id
+    FROM streams s
+    JOIN users u ON u.id = s.user_id
+    JOIN villages v_leader ON v_leader.village_id = u.village_id
+    JOIN blocks b ON b.block_id = v_leader.block_id
+    WHERE u.role = 'leader'
+      AND s.user_id != $1
+      AND (
+        -- Same block
+        b.block_id = (
+          SELECT v_user.block_id
+          FROM users u_user
+          JOIN villages v_user ON v_user.village_id = u_user.village_id
+          WHERE u_user.id = $1
         )
-
-      ORDER BY s.created_at DESC`,
+        OR
+        -- Followed leader
+        EXISTS (
+          SELECT 1
+          FROM follows f
+          WHERE f.follower_id = $1
+            AND f.following_id = u.id
+        )
+      )
+    ORDER BY 
+      CASE 
+        WHEN s.status = 'live' THEN 0
+        WHEN s.status = 'scheduled' THEN 1
+        ELSE 2
+      END,
+      s.created_at DESC`,
       [userId],
     );
   }
