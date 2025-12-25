@@ -43,10 +43,12 @@ import {
 } from "../controllers/user/searchLeader.controller.js";
 import {
   followUser,
-  getUserFollower,
+  getUserFollowers,
   getUserFollowings,
+  removeFollower,
   unfollowUser,
 } from "../controllers/community/social.js";
+import { refreshAccessToken } from "../controllers/auth/refreshTokenController.js";
 
 const router = Router();
 
@@ -68,6 +70,8 @@ router.post(
   validate,
   loginUser,
 );
+
+router.post("/auth/refresh-token", deviceInfoMiddleware, refreshAccessToken);
 
 // OTP Verification
 router.post("/send-otp", sendVerificationOTP);
@@ -97,7 +101,8 @@ router.get("/user/profile/stats", authMiddleware, getProfileStats);
 router.get("/user/:userId/profile", authMiddleware, getUserProfile);
 router.post("/user/:id/follow", authMiddleware, followUser);
 router.post("/user/:id/unfollow", authMiddleware, unfollowUser);
-router.get("/user/followers", authMiddleware, getUserFollower);
+router.post("/user/:id/remove-follower", authMiddleware, removeFollower);
+router.get("/user/followers", authMiddleware, getUserFollowers);
 router.get("/user/followings", authMiddleware, getUserFollowings);
 router.get("/search/leaders", authMiddleware, searchLeaders);
 

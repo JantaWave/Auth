@@ -1,15 +1,17 @@
-import { redis } from "googleapis/build/src/apis/redis/index.js";
-import redisClient from "../config/redis";
+import redisClient from "../config/redis.js";
 
-export const getCache = async (key) => {
-  const data = await redisClient.get(key);
-  return data ? JSON.parse(data) : null;
-};
+export async function getOrSetCache(key, ttlSeconds, fetcher) {
+  const cached = await redisClient.get(key);
+  if (cached) return JSON.parse(cached);
 
-export const setCache = async (key, value, ttl = 60) => {
-  await redisClient.set(key, JSON.stringify(value), "EX", ttl);
-};
+  const fresh = await fetcher();
+  if (fresh) {
+    await redisClient.set(key, JSON.stringify(fresh), "EX", ttlSeconds);
+  }
+  return fresh;
+}
 
-export const delCache = async (key) => {
-  await redisClient.del(key);
-};
+export async function invalidate(keys = []) {
+  if (!keys.length) return;
+  await redisClient.del(keys);
+}

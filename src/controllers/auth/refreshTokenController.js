@@ -16,13 +16,13 @@ const REFRESH_TOKEN_EXPIRY_DAYS = parseInt(
  * @access Public (requires valid refresh token in cookie)
  */
 export const refreshAccessToken = asyncHandler(async (req, res) => {
-  const oldRefreshToken = req.cookies?.refresh_token;
+  // 1. CHANGE: Look in Cookies (Web) OR Body (Mobile)
+  const oldRefreshToken = req.cookies?.refresh_token || req.body?.refreshToken;
 
   if (!oldRefreshToken) {
     throw new ApiError(401, "Refresh token not found");
   }
 
-  // Rotate the refresh token and get new token pair
   const result = await rotateRefreshToken(
     oldRefreshToken,
     req.deviceInfo,
@@ -30,13 +30,9 @@ export const refreshAccessToken = asyncHandler(async (req, res) => {
   );
 
   if (result.error) {
-    const errorMessages = {
-      TOKEN_REUSED: "Refresh token has already been used. Please login again.",
-      INVALID_SESSION: "Invalid session. Please login again.",
-      TOKEN_EXPIRED: "Refresh token expired. Please login again.",
-      INVALID_REFRESH_TOKEN: "Invalid refresh token. Please login again.",
-    };
-
+    // ... (Keep existing error handling) ...
+    res.clearCookie("refresh_token");
+    res.clearCookie("session_id");
     throw new ApiError(
       401,
       errorMessages[result.error] || "Authentication failed",
@@ -45,30 +41,30 @@ export const refreshAccessToken = asyncHandler(async (req, res) => {
 
   const { accessToken, refreshToken, sessionId } = result;
 
-  const options = {
+  const cookieOptions = {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    sameSite: "Strict",
+    sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
+    path: "/",
+    maxAge: REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000,
   };
 
-  return res
-    .status(200)
-    .cookie("refresh_token", refreshToken, {
-      ...options,
-      maxAge: REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000,
-    })
-    .cookie("session_id", sessionId, {
-      ...options,
-      maxAge: REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000,
-    })
-    .json(
-      new ApiResponse(
-        200,
-        {
-          accessToken,
-          refreshToken,
-        },
-        "Access token refreshed successfully",
-      ),
-    );
+  return (
+    res
+      .status(200)
+      // Keep setting cookies for Web clients
+      .cookie("refresh_token", refreshToken, cookieOptions)
+      .cookie("session_id", sessionId, cookieOptions)
+      .json(
+        new ApiResponse(
+          200,
+          {
+            accessToken,
+            // 2. CHANGE: Send refreshToken in JSON so Mobile can save it
+            refreshToken,
+          },
+          "Access token refreshed successfully",
+        ),
+      )
+  );
 });

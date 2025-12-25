@@ -1,4 +1,5 @@
 import { db } from "../config/db.js";
+import { getOrSetCache, invalidate } from "../utils/cache.js";
 
 class StreamModel {
   /* ---------------- HELPERS ---------------- */
@@ -34,20 +35,31 @@ class StreamModel {
         session.token,
       ],
     );
+    // 🔥 Invalidate feed caches
+    await invalidate([`streams:feed:*`]);
   }
 
-  /* ---------------- GET USER STREAMS ---------------- */
-  static async getAllUserStreams(userId) {
-    return this._many(
+  /* ---------------- USER STREAMS WITH PAGINATION ---------------- */
+  static async getAllUserStreams(userId, limit = 10, cursor = null) {
+    const streams = await this._many(
       `SELECT *
        FROM streams
        WHERE user_id = $1
-       ORDER BY created_at DESC`,
-      [userId],
+         AND ($3::timestamp IS NULL OR created_at < $3)
+       ORDER BY created_at DESC
+       LIMIT $2`,
+      [userId, limit, cursor],
     );
+
+    return {
+      streams,
+      nextCursor: streams.length
+        ? streams[streams.length - 1].created_at
+        : null,
+    };
   }
 
-  /* ---------------- GET SINGLE STREAM ---------------- */
+  /* ---------------- SINGLE STREAM ---------------- */
   static async get(sessionId) {
     return this._single(
       `SELECT *
@@ -65,56 +77,83 @@ class StreamModel {
        WHERE id = $2`,
       [status, sessionId],
     );
+    // 🔥 Invalidate all user feeds
+    await invalidate([`streams:feed:*`]);
   }
 
-  /* ---------------- FEED FOR USER (BLOCK / FOLLOW) ---------------- */
-  static async getStreamsForUser(userId) {
-    return this._many(
-      `SELECT
-      s.id,
-      s.title,
-      s.status,
-      s.scheduled_start_time,
-      s.thumbnail_url,
-      COALESCE(s.share_urls, '{}'::jsonb) AS share_urls, 
-      s.user_id,
-      s.created_at,
-      u.first_name,
-      u.last_name,
-      u.avatar_url,
-      b.block_id
-    FROM streams s
-    JOIN users u ON u.id = s.user_id
-    JOIN villages v_leader ON v_leader.village_id = u.village_id
-    JOIN blocks b ON b.block_id = v_leader.block_id
-    WHERE u.role = 'leader'
-      AND s.user_id != $1
-      AND (
-        -- Same block
-        b.block_id = (
-          SELECT v_user.block_id
-          FROM users u_user
-          JOIN villages v_user ON v_user.village_id = u_user.village_id
-          WHERE u_user.id = $1
-        )
-        OR
-        -- Followed leader
-        EXISTS (
-          SELECT 1
-          FROM follows f
-          WHERE f.follower_id = $1
-            AND f.following_id = u.id
-        )
-      )
-    ORDER BY 
-      CASE 
-        WHEN s.status = 'live' THEN 0
-        WHEN s.status = 'scheduled' THEN 1
-        ELSE 2
-      END,
-      s.created_at DESC`,
-      [userId],
+  /* ---------------- FEED (BLOCK / FOLLOW) WITH PAGINATION ---------------- */
+  static async getStreamsForUser(userId, limit = 10, cursor = null) {
+    const cacheKey = `streams:feed:${userId}:l${limit}:c${cursor || "first"}`;
+
+    return getOrSetCache(
+      cacheKey,
+      20, // ⏱ short TTL for live accuracy
+      async () => {
+        const streams = await this._many(
+          `SELECT
+            s.id,
+            s.title,
+            s.status,
+            s.scheduled_start_time,
+            s.thumbnail_url,
+            s.created_at,
+            COALESCE(s.share_urls, '{}'::jsonb) AS share_urls,
+            s.user_id,
+            u.first_name,
+            u.last_name,
+            u.avatar_url,
+            b.block_id
+          FROM streams s
+          JOIN users u ON u.id = s.user_id
+          JOIN villages v_leader ON v_leader.village_id = u.village_id
+          JOIN blocks b ON b.block_id = v_leader.block_id
+          WHERE u.role = 'leader'
+            AND s.user_id != $1
+            AND (
+              -- Same block
+              b.block_id = (
+                SELECT v_user.block_id
+                FROM users u_user
+                JOIN villages v_user ON v_user.village_id = u_user.village_id
+                WHERE u_user.id = $1
+              )
+              OR
+              -- Followed leader
+              EXISTS (
+                SELECT 1
+                FROM follows f
+                WHERE f.follower_id = $1
+                  AND f.following_id = u.id
+              )
+            )
+            AND ($3::timestamp IS NULL OR s.created_at < $3)
+          ORDER BY 
+            CASE 
+              WHEN s.status = 'live' THEN 0
+              WHEN s.status = 'scheduled' THEN 1
+              ELSE 2
+            END,
+            s.created_at DESC
+          LIMIT $2`,
+          [userId, limit, cursor],
+        );
+
+        return {
+          streams,
+          nextCursor: streams.length
+            ? streams[streams.length - 1].created_at
+            : null,
+        };
+      },
     );
+  }
+
+  static async getStreamsFromToken(token) {
+    const result = await this._single(
+      `SELECT * FROM streams WHERE token = $1 LIMIT 1`,
+      [token],
+    );
+    return result;
   }
 }
 

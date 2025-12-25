@@ -1,5 +1,5 @@
 import UserModel from "../models/auth.models.js";
-import * as jwtUtil from "../utils/jwt.js"; // central JWT util
+import * as jwtUtil from "../utils/jwt.js";
 import { ApiError } from "../utils/ApiError.js";
 
 export const authMiddleware = async (req, res, next) => {
@@ -7,36 +7,37 @@ export const authMiddleware = async (req, res, next) => {
     const authHeader = req.headers["authorization"];
 
     if (!authHeader?.startsWith("Bearer ")) {
-      return res.status(401).json({ error: "No token provided" });
+      // ✅ Use ApiError for consistency
+      return res.status(401).json(new ApiError(401, "No token provided"));
     }
 
     const token = authHeader.split(" ")[1];
-    const decoded = jwtUtil.verifyAccessToken(token); // your util should throw if expired
+    const decoded = jwtUtil.verifyAccessToken(token);
 
     const userId = decoded?.id;
     if (!userId) {
-      return res.status(401).json({ error: "Invalid token payload" });
+      return res.status(401).json(new ApiError(401, "Invalid token payload"));
     }
 
     const user = await UserModel.findById(userId);
     if (!user) {
-      return res.status(404).json({ error: "User not found" });
+      return res.status(404).json(new ApiError(404, "User not found"));
     }
 
-    req.user = UserModel.sanitizeUser(user); // attach sanitized user to request
+    req.user = UserModel.sanitizeUser(user);
     next();
   } catch (err) {
     console.error("Auth Middleware Error:", err);
 
-    // handle expired or invalid token errors clearly
     if (err.name === "TokenExpiredError") {
-      return res.status(401).json({ error: "Access token expired" });
+      // ✅ This 401 triggers the frontend refresh
+      return res.status(401).json(new ApiError(401, "Access token expired"));
     }
     if (err.name === "JsonWebTokenError") {
-      return res.status(401).json({ error: "Invalid token" });
+      return res.status(401).json(new ApiError(401, "Invalid token"));
     }
 
-    res.status(500).json({ error: "Internal server error" });
+    res.status(500).json(new ApiError(500, "Internal server error"));
   }
 };
 

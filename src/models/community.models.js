@@ -1,88 +1,147 @@
 import { db } from "../config/db.js";
+import { getOrSetCache, invalidate } from "../utils/cache.js";
 
 class CommunityModel {
-  // Return only one row
   static async _single(query, params) {
     const { rows } = await db.query(query, params);
     return rows[0] || null;
   }
 
-  // Return multiple rows
   static async _many(query, params) {
     const { rows } = await db.query(query, params);
     return rows;
   }
 
-  /**
-   * FOLLOW USER
-   * followerId → logged-in user
-   * followingId → target user
-   */
+  /* ------------------------------------
+     FOLLOW / UNFOLLOW (NO CACHE)
+     ------------------------------------ */
+
   static async follow(followerId, targetUserId) {
-    const query = `
+    const result = await this._single(
+      `
       INSERT INTO follows (follower_id, following_id)
       VALUES ($1, $2)
       ON CONFLICT (follower_id, following_id) DO NOTHING
       RETURNING id;
-    `;
-    return await this._single(query, [followerId, targetUserId]);
+      `,
+      [followerId, targetUserId],
+    );
+
+    await invalidate([
+      `followers:${targetUserId}`,
+      `followings:${followerId}`,
+      `leader:stats:${targetUserId}`,
+    ]);
+
+    return result;
   }
 
   static async unfollow(followerId, targetUserId) {
-    const query = `
+    const result = await this._single(
+      `
       DELETE FROM follows 
       WHERE follower_id = $1 AND following_id = $2
       RETURNING id;
-    `;
-    return await this._single(query, [followerId, targetUserId]);
+      `,
+      [followerId, targetUserId],
+    );
+
+    await invalidate([
+      `followers:${targetUserId}`,
+      `followings:${followerId}`,
+      `leader:stats:${targetUserId}`,
+    ]);
+
+    return result;
   }
 
-  /**
-   * GET USER FOLLOWERS (Returns an array)
-   */
+  static async removeFollower(leaderId, followerId) {
+    const result = await this._single(
+      `
+    DELETE FROM follows
+    WHERE follower_id = $1
+      AND following_id = $2
+    RETURNING id
+    `,
+      [followerId, leaderId],
+    );
+
+    await invalidate([
+      `followers:${leaderId}`,
+      `followings:${followerId}`,
+      `leader:stats:${leaderId}`,
+    ]);
+
+    return result;
+  }
+
+  /* ------------------------------------
+     FOLLOWERS (CACHED)
+     ------------------------------------ */
+
   static async getUserFollowers(userId) {
-    return await this._many(
-      `
-    SELECT
-      u.id,
-      u.first_name,
-      u.last_name,
-      u.avatar_url,
-      u.role
-    FROM follows f
-    JOIN users u ON u.id = f.follower_id
-    WHERE f.following_id = $1
-    ORDER BY f.created_at DESC
-    `,
-      [userId],
+    return getOrSetCache(
+      `followers:${userId}`,
+      30,
+      async () =>
+        await this._many(
+          `
+          SELECT
+            u.id,
+            u.first_name,
+            u.last_name,
+            u.avatar_url,
+            u.role
+          FROM follows f
+          JOIN users u ON u.id = f.follower_id
+          WHERE f.following_id = $1
+          ORDER BY f.created_at DESC
+          `,
+          [userId],
+        ),
     );
   }
 
-  /**
-   * GET USERS THE USER FOLLOWS (Returns an array)
-   */
+  /* ------------------------------------
+     FOLLOWINGS (CACHED)
+     ------------------------------------ */
+
   static async getUserFollowings(userId) {
-    return await this._many(
-      `
-    SELECT
-      u.id,
-      u.first_name,
-      u.last_name,
-      u.avatar_url,
-      u.role
-    FROM follows f
-    JOIN users u ON u.id = f.following_id
-    WHERE f.follower_id = $1
-    ORDER BY f.created_at DESC
-    `,
-      [userId],
+    return getOrSetCache(
+      `followings:${userId}`,
+      30,
+      async () =>
+        await this._many(
+          `
+          SELECT
+            u.id,
+            u.first_name,
+            u.last_name,
+            u.avatar_url,
+            u.role
+          FROM follows f
+          JOIN users u ON u.id = f.following_id
+          WHERE f.follower_id = $1
+          ORDER BY f.created_at DESC
+          `,
+          [userId],
+        ),
     );
   }
+
+  /* ------------------------------------
+     LEADER PROFILE STATS (CACHED)
+     ------------------------------------ */
 
   static async getProfileStats(userId) {
-    return await this._single(
-      `SELECT * FROM leader_profile_stats lps WHERE lps.user_id=$1`,
-      [userId],
+    return getOrSetCache(
+      `leader:stats:${userId}`,
+      60,
+      async () =>
+        await this._single(
+          `SELECT * FROM leader_profile_stats WHERE user_id = $1`,
+          [userId],
+        ),
     );
   }
 }

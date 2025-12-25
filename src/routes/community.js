@@ -1,82 +1,35 @@
+// src/routes/community.routes.js
 import { Router } from "express";
-import { db } from "../config/db.js";
-import { asyncHandler } from "../utils/asyncHandler.js";
-import { ApiResponse } from "../utils/ApiResponse.js";
 import { authMiddleware } from "../middlewares/auth.middleware.js";
+
+import {
+  followUser,
+  unfollowUser,
+  removeFollower,
+  getUserFollowers,
+  getUserFollowings,
+} from "../controllers/community/social.js";
 
 const router = Router();
 
-router.post(
-  "/follow/:userId",
-  asyncHandler(async (req, res) => {
-    const { followerId, followingId } = req.body;
+/* ---------------- FOLLOW USER ---------------- */
+// POST /api/v1/user/:id/follow
+router.post("/:id/follow", authMiddleware, followUser);
 
-    try {
-      await db.query(
-        `INSERT INTO follows (follower_id, following_id)
-           VALUES ($1, $2)
-           ON CONFLICT DO NOTHING`,
-        [followerId, followingId],
-      );
-      res.json({ success: true });
-    } catch (err) {
-      res.status(500).json({ message: "Error following user" });
-    }
-  }),
-);
+/* ---------------- UNFOLLOW USER ---------------- */
+// POST /api/v1/user/:id/unfollow
+router.post("/:id/unfollow", authMiddleware, unfollowUser);
 
-router.post(
-  "/unfollow/:userId",
-  asyncHandler(async (req, res) => {
-    const { followerId, followingId } = req.body;
+/* ---------------- REMOVE FOLLOWER ---------------- */
+// POST /api/v1/user/:id/remove-follower
+router.post("/:id/remove-follower", authMiddleware, removeFollower);
 
-    try {
-      await db.query(
-        `DELETE FROM follows
-       WHERE follower_id=$1 AND following_id=$2`,
-        [followerId, followingId],
-      );
-      res.json({ success: true });
-    } catch (err) {
-      res.status(500).json({ message: "Error unfollowing user" });
-    }
-  }),
-);
+/* ---------------- GET FOLLOWERS ---------------- */
+// GET /api/v1/user/followers
+router.get("/followers", authMiddleware, getUserFollowers);
 
-router.get(
-  "/:userId/followers",
-  authMiddleware,
-  asyncHandler(async (req, res) => {
-    const userId = req.user.id;
-
-    try {
-      const result = await db.query(
-        `SELECT follower_id FROM follows WHERE following_id = $1`,
-        [userId],
-      );
-      res.json(result.rows[0]);
-    } catch (err) {
-      res.status(500).json({ message: "Error unfollowing user" });
-    }
-  }),
-);
-
-router.get(
-  "/:userId/following",
-  authMiddleware,
-  asyncHandler(async (req, res) => {
-    const userId = req.user.id;
-
-    try {
-      const result = await db.query(
-        `SELECT following_id FROM follows WHERE follower_id = $1`,
-        [userId],
-      );
-      res.json(result.rows[0]);
-    } catch (err) {
-      res.status(500).json({ message: "Error unfollowing user" });
-    }
-  }),
-);
+/* ---------------- GET FOLLOWINGS ---------------- */
+// GET /api/v1/user/followings
+router.get("/followings", authMiddleware, getUserFollowings);
 
 export default router;

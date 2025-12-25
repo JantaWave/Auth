@@ -61,6 +61,7 @@ export const getProfile = asyncHandler(async (req, res) => {
  * @access Private
  */
 export const updateProfile = asyncHandler(async (req, res) => {
+  console.log("updateProfile called");
   const userId = req.user.id;
   const {
     first_name,
@@ -68,28 +69,23 @@ export const updateProfile = asyncHandler(async (req, res) => {
     date_of_birth,
     avatar_url,
     bio,
-    state,
-    district,
-    block,
-    village,
+    // Address fields
+    village, // This is the village_id from the frontend
   } = req.body;
 
-  // Validate at least one field
+  // 1. Validate at least one field is present
   if (
     !first_name &&
     !last_name &&
     !date_of_birth &&
     !avatar_url &&
     !bio &&
-    !state &&
-    !district &&
-    !block &&
     !village
   ) {
     throw new ApiError(400, "At least one field is required to update");
   }
 
-  // Date of birth validation
+  // 2. Validate Date of Birth
   if (date_of_birth) {
     const dob = new Date(date_of_birth);
     const today = new Date();
@@ -102,6 +98,7 @@ export const updateProfile = asyncHandler(async (req, res) => {
     }
   }
 
+  // 3. Prepare Update Object
   const updateData = {};
   if (first_name) updateData.first_name = first_name.trim();
   if (last_name) updateData.last_name = last_name.trim();
@@ -109,25 +106,26 @@ export const updateProfile = asyncHandler(async (req, res) => {
   if (avatar_url) updateData.avatar_url = avatar_url;
   if (bio) updateData.bio = bio.trim();
 
-  let updatedUser;
-
-  // If address fields are included
-  if (state || district || block || village) {
-    updatedUser = await UserModel.updateAddress(
-      userId,
-      state,
-      district,
-      block,
-      village,
-    );
-  } else {
-    updatedUser = await UserModel.update(userId, updateData);
+  // Map 'village' (ID) to 'village_id' for the database
+  if (village) {
+    updateData.village_id = village;
   }
+
+  // 4. Perform Update
+  if (Object.keys(updateData).length > 0) {
+    await UserModel.update(userId, updateData);
+  }
+
+  // 5. CRITICAL: Refetch user to get "normalized" fields (state_name, etc.)
+  // The 'update' method only returns the raw user table row.
+  // 'findById' performs the JOINs to get state, district, block names.
+  const updatedUser = await UserModel.findById(userId);
 
   if (!updatedUser) {
-    throw new ApiError(500, "Failed to update profile");
+    throw new ApiError(500, "Failed to fetch updated profile");
   }
 
+  // 6. Return Response
   return res.status(200).json(
     new ApiResponse(
       200,
@@ -140,10 +138,13 @@ export const updateProfile = asyncHandler(async (req, res) => {
           date_of_birth: updatedUser.date_of_birth,
           avatar_url: updatedUser.avatar_url,
           bio: updatedUser.bio,
+          // Correctly mapped from the JOIN result
           state: updatedUser.state_normalized,
           district: updatedUser.district_normalized,
           block: updatedUser.block_normalized,
           village: updatedUser.village_normalized,
+
+          village_id: updatedUser.village_id, // Useful to return the ID too
           isContactVerified: updatedUser.is_contact_verified,
         },
       },
@@ -151,7 +152,6 @@ export const updateProfile = asyncHandler(async (req, res) => {
     ),
   );
 });
-
 export const getProfileStats = asyncHandler(async (req, res) => {
   const userId = req.user.id;
   if (!userId) throw new ApiError(400, "Not Authorised.");

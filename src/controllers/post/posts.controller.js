@@ -35,15 +35,18 @@ export const createPost = asyncHandler(async (req, res) => {
 
 export const getUserPost = asyncHandler(async (req, res) => {
   const { userId } = req.params;
-
   if (!userId) {
     return res.status(400).json({ error: "User ID is required" });
   }
 
-  const posts = await PostModel.getUserPosts(userId);
+  const limit = Number(req.query.limit || 10);
+  const cursor = req.query.cursor || null;
+
+  const result = await PostModel.getUserPosts(userId, limit, cursor);
+
   return res
     .status(200)
-    .json(new ApiResponse(200, posts, "Posts fetched successfully"));
+    .json(new ApiResponse(200, result, "Posts fetched successfully"));
 });
 
 export const likeOrDislikePost = asyncHandler(async (req, res) => {
@@ -71,11 +74,55 @@ export const likeOrDislikePost = asyncHandler(async (req, res) => {
 });
 
 export const getPostsForUser = asyncHandler(async (req, res) => {
-  const userId = req?.user.id;
-  if (!userId) throw new ApiError(400, "unauthorised request");
-  const posts = await PostModel.getPostForUsers(userId);
+  console.log("post fetching starts");
+  const userId = req.user?.id;
+  if (!userId) throw new ApiError(401, "Unauthorised");
+
+  const limit = Number(req.query.limit || 5);
+  const cursor = req.query.cursor || null;
+
+  const fetchedPosts = await PostModel.getPostForUsers(userId, limit, cursor);
+  const posts = fetchedPosts.posts;
+  const nextCursor = fetchedPosts.nextCursor;
   console.log(posts);
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        posts,
+        nextCursor,
+      },
+      "Posts fetched",
+    ),
+  );
+});
+
+export const postComments = asyncHandler(async (req, res) => {
+  const { postId } = req.params;
+  const { content, parentCommentId } = req.body;
+  const userId = req.user.id;
+
+  const comment = await PostModel.postComment(
+    postId,
+    userId,
+    content,
+    parentCommentId,
+  );
+  if (!comment) throw new ApiError(500, "Internal Server Error");
+
+  return res.status(200).json(new ApiResponse(200, comment, "Comment posted"));
+});
+
+export const getPostComments = asyncHandler(async (req, res) => {
+  const { postId } = req.params;
+
+  const limit = Number(req.query.limit || 10);
+  const cursor = req.query.cursor || null;
+
+  const comments = await PostModel.getPostComments(postId, limit, cursor);
+
   return res
     .status(200)
-    .json(new ApiResponse(200, posts, "posts feched successfully."));
+    .json(new ApiResponse(200, comments, "Comments fetched successfully"));
 });
