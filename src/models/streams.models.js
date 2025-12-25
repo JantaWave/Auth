@@ -90,51 +90,46 @@ class StreamModel {
       20, // ⏱ short TTL for live accuracy
       async () => {
         const streams = await this._many(
-          `SELECT
-            s.id,
-            s.title,
-            s.status,
-            s.scheduled_start_time,
-            s.thumbnail_url,
-            s.created_at,
-            COALESCE(s.share_urls, '{}'::jsonb) AS share_urls,
-            s.user_id,
-            u.first_name,
-            u.last_name,
-            u.avatar_url,
-            b.block_id
-          FROM streams s
-          JOIN users u ON u.id = s.user_id
-          JOIN villages v_leader ON v_leader.village_id = u.village_id
-          JOIN blocks b ON b.block_id = v_leader.block_id
-          WHERE u.role = 'leader'
-            AND s.user_id != $1
-            AND (
-              -- Same block
-              b.block_id = (
-                SELECT v_user.block_id
-                FROM users u_user
-                JOIN villages v_user ON v_user.village_id = u_user.village_id
-                WHERE u_user.id = $1
-              )
-              OR
-              -- Followed leader
-              EXISTS (
-                SELECT 1
-                FROM follows f
-                WHERE f.follower_id = $1
-                  AND f.following_id = u.id
-              )
-            )
-            AND ($3::timestamp IS NULL OR s.created_at < $3)
-          ORDER BY 
-            CASE 
-              WHEN s.status = 'live' THEN 0
-              WHEN s.status = 'scheduled' THEN 1
-              ELSE 2
-            END,
-            s.created_at DESC
-          LIMIT $2`,
+          `WITH requester_block AS (
+  SELECT block_id
+  FROM leader_block_map
+  WHERE leader_id = $1
+)
+SELECT
+  s.id,
+  s.title,
+  s.status,
+  s.scheduled_start_time,
+  s.thumbnail_url,
+  s.created_at,
+  COALESCE(s.share_urls, '{}'::jsonb) AS share_urls,
+  s.user_id,
+  lb.first_name,
+  lb.last_name,
+  lb.avatar_url,
+  lb.block_id
+FROM streams s
+JOIN leader_block_map lb
+  ON lb.leader_id = s.user_id
+LEFT JOIN follows f
+  ON f.following_id = s.user_id
+ AND f.follower_id = $1
+JOIN requester_block rb ON TRUE
+WHERE s.user_id != $1
+  AND (
+    lb.block_id = rb.block_id
+    OR f.follower_id IS NOT NULL
+  )
+  AND ($3::timestamp IS NULL OR s.created_at < $3)
+ORDER BY
+  CASE s.status
+    WHEN 'live' THEN 0
+    WHEN 'scheduled' THEN 1
+    ELSE 2
+  END,
+  s.created_at DESC
+LIMIT $2;
+`,
           [userId, limit, cursor],
         );
 
