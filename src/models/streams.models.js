@@ -93,7 +93,7 @@ class StreamModel {
           `WITH requester_block AS (
   SELECT block_id
   FROM leader_block_map
-  WHERE leader_id = $1
+  WHERE user_id = $1
 )
 SELECT
   s.id,
@@ -104,13 +104,15 @@ SELECT
   s.created_at,
   COALESCE(s.share_urls, '{}'::jsonb) AS share_urls,
   s.user_id,
-  lb.first_name,
-  lb.last_name,
-  lb.avatar_url,
+  u.first_name,
+  u.last_name,
+  u.avatar_url,
   lb.block_id
 FROM streams s
 JOIN leader_block_map lb
-  ON lb.leader_id = s.user_id
+  ON lb.user_id = s.user_id
+JOIN users u
+  ON u.id = s.user_id
 LEFT JOIN follows f
   ON f.following_id = s.user_id
  AND f.follower_id = $1
