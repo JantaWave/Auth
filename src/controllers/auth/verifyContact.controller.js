@@ -7,21 +7,34 @@ import { createAndStoreOtp, verifyOtp } from "../../utils/otp.js";
 
 export const verifyContact = asyncHandler(async (req, res) => {
   const { contact, otp } = req.body;
-  if (!contact || !otp) {
-    throw new ApiError(400, "Contact and OTP are required");
+  if (!contact) {
+    throw new ApiError(400, "Contact is required");
   }
 
-  const user = await UserModel.findByMobile(contact);
-  if (user && user.is_contact_verified) {
-    throw new ApiError(409, "User already exists and verified");
+  // ✅ 1. If already verified in this session → short-circuit
+  const isAlreadyVerifiedSession = await redisClient.get(
+    `otp:verified:${contact}`,
+  );
+
+  if (isAlreadyVerifiedSession === "true") {
+    return res
+      .status(200)
+      .json(
+        new ApiResponse(
+          200,
+          { contact, isVerified: true },
+          "Contact already verified in this session",
+        ),
+      );
   }
 
-  // ✅ Get the verification result object
+  // ⛔ OTP REQUIRED only if NOT verified
+  if (!otp) {
+    throw new ApiError(400, "OTP is required");
+  }
+
   const verificationResult = await verifyOtp(contact, otp);
 
-  console.log("Verification result:", verificationResult);
-
-  // ✅ Check the .success property, not the object itself
   if (!verificationResult.success) {
     const errorMessages = {
       too_many_attempts: "Too many failed attempts. Please try again later.",
@@ -37,12 +50,8 @@ export const verifyContact = asyncHandler(async (req, res) => {
     );
   }
 
-  const OTP_VERIFIED_TTL = 300;
-  await redisClient.setEx(`otp:verified:${contact}`, OTP_VERIFIED_TTL, "true");
-
-  if (user) {
-    await UserModel.verifyContact(contact);
-  }
+  // ✅ Mark verified for session
+  await redisClient.setEx(`otp:verified:${contact}`, 300, "true");
 
   return res
     .status(200)
@@ -57,25 +66,25 @@ export const verifyContact = asyncHandler(async (req, res) => {
 
 export const sendVerificationOTP = asyncHandler(async (req, res) => {
   const { contact } = req.body;
+  if (!contact) throw new ApiError(400, "Contact is required");
 
-  if (!contact) {
-    throw new ApiError(400, "Contact is required");
-  }
-  const user = await UserModel.findByMobile(contact);
-  if (user && user.is_contact_verified) {
-    throw new ApiError(404, "User already exists and verified");
+  // Reset verification state if they are retrying
+  await redisClient.del(`otp:verified:${contact}`);
+
+  // Attempt to create OTP
+  const otpResult = await createAndStoreOtp(contact);
+
+  // ✅ FIX: Do not send 200 OK if OTP was not actually created
+  if (!otpResult.success) {
+    if (otpResult.reason === "cooldown_active") {
+      // If you are in development, you might want to bypass this,
+      // but in production, this prevents spam.
+      throw new ApiError(429, "Please wait 60 seconds before resending OTP.");
+    }
+    throw new ApiError(500, "Failed to generate OTP.");
   }
 
-  const otp = await createAndStoreOtp(contact);
-  return res.status(200).json(
-    new ApiResponse(
-      200,
-      {
-        user: {
-          contact: contact,
-        },
-      },
-      "OTP sent successfully",
-    ),
-  );
+  return res
+    .status(200)
+    .json(new ApiResponse(200, { user: { contact } }, "OTP sent successfully"));
 });

@@ -39,25 +39,23 @@ export async function verifyOtp(key, userInputOtp) {
     }
 
     const storedHash = await redisClient.get(`otp:${key}`);
-    console.log("storedHash from Redis:", storedHash);
 
     if (!storedHash) {
-      console.log("No stored hash found");
       return { success: false, reason: "expired_or_not_found" };
     }
 
-    console.log("User input OTP:", userInputOtp);
     const inputHash = hmacSHA256(userInputOtp);
-    console.log("stored in redis:", storedHash);
-    console.log("Input otp hash:", inputHash);
-
     const isMatch = safeCompare(storedHash, inputHash);
-    console.log("isMatch result:", isMatch); // ⭐ ADD THIS
 
     if (isMatch) {
       console.log("OTP matched - deleting keys");
-      await redisClient.del(`otp:${key}`);
-      await redisClient.del(`otp:attempts:${key}`);
+
+      await Promise.all([
+        redisClient.del(`otp:${key}`), // The OTP itself
+        redisClient.del(`otp:attempts:${key}`), // The attempt count
+        redisClient.del(`otp:last:${key}`), // The cooldown timer
+      ]);
+
       return { success: true };
     }
 
@@ -69,7 +67,6 @@ export async function verifyOtp(key, userInputOtp) {
     return { success: false, reason: "system_error" };
   }
 }
-
 /** Generate + store new OTP with cooldown */
 export async function createAndStoreOtp(key) {
   const last = await redisClient.get(`otp:last:${key}`); // Fixed
