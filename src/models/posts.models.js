@@ -94,6 +94,33 @@ class PostModel {
 
     return { liked: true };
   }
+
+  /* ---------------- DISLIKE ---------------- */
+  static async dislikePost(userId, postId) {
+    const result = await db.query(
+      `
+    DELETE FROM post_likes
+    WHERE post_id = $1 AND user_id = $2
+    `,
+      [postId, userId],
+    );
+
+    if (result.rowCount > 0) {
+      await db.query(
+        `
+      UPDATE posts
+      SET likes_count = GREATEST(likes_count - 1, 0)
+      WHERE id = $1
+      `,
+        [postId],
+      );
+
+      await invalidate([`posts:feed:*`]);
+    }
+
+    return { liked: false };
+  }
+
   /* ---------------- COMMENTS ---------------- */
   static async postComment(postId, userId, content, parentCommentId = null) {
     const comment = await this._single(
