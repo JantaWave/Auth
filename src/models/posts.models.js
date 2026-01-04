@@ -221,6 +221,30 @@ class PostModel {
     });
   }
 
+  static async getPostComments(postId, limit = 10, cursor = null) {
+    return this._many(
+      `
+    SELECT
+      pc.id,
+      pc.post_id,
+      pc.content,
+      pc.created_at,
+      pc.parent_comment_id,
+      u.id AS user_id,
+      u.first_name,
+      u.last_name,
+      u.avatar_url
+    FROM post_comments pc
+    JOIN users u ON u.id = pc.user_id
+    WHERE pc.post_id = $1
+      AND ($3::timestamp IS NULL OR pc.created_at > $3)
+    ORDER BY pc.created_at ASC
+    LIMIT $2
+    `,
+      [postId, limit, cursor],
+    );
+  }
+
   static async getUserPosts(userId, limit = 10, cursor = null) {
     const posts = await this._many(
       `

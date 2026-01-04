@@ -38,6 +38,7 @@ class ActivityModel {
         JSON.stringify(metadata),
       ],
     );
+    console.log("Activity Created", activity);
 
     // invalidate leader activity cache
     await invalidate([`activity:${targetUserId}:*`]);
