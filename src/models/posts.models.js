@@ -107,12 +107,11 @@ class PostModel {
           `posts:feed:*`,
           `posts:user:${post.rows[0].user_id}:*`,
         ]);
-
-        return { liked: true, success: true };
+      } else {
+        await client.query("COMMIT");
       }
 
-      await client.query("COMMIT");
-      return { liked: true, success: false, message: "Already liked" };
+      return { liked: true };
     } catch (error) {
       await client.query("ROLLBACK");
       throw error;
@@ -169,12 +168,11 @@ class PostModel {
           `posts:feed:*`,
           `posts:user:${post.rows[0].user_id}:*`,
         ]);
-
-        return { liked: false, success: true };
+      } else {
+        await client.query("COMMIT");
       }
 
-      await client.query("COMMIT");
-      return { liked: false, success: false, message: "Not liked" };
+      return { liked: false };
     } catch (error) {
       await client.query("ROLLBACK");
       throw error;
@@ -191,7 +189,7 @@ class PostModel {
       await client.query("BEGIN");
 
       // Insert comment
-      const comment = await client.query(
+      const commentResult = await client.query(
         `
         INSERT INTO post_comments (post_id, user_id, content, parent_comment_id)
         VALUES ($1,$2,$3,$4)
@@ -251,60 +249,7 @@ class PostModel {
         `posts:comments:${postId}:*`,
       ]);
 
-      return comment.rows[0];
-    } catch (error) {
-      await client.query("ROLLBACK");
-      throw error;
-    } finally {
-      client.release();
-    }
-  }
-
-  /* ---------------- DELETE COMMENT ---------------- */
-  static async deleteComment(commentId, userId) {
-    const client = await db.connect();
-
-    try {
-      await client.query("BEGIN");
-
-      // Verify ownership and get comment details
-      const comment = await client.query(
-        `
-        SELECT id, post_id, user_id 
-        FROM post_comments 
-        WHERE id = $1 AND user_id = $2
-        `,
-        [commentId, userId],
-      );
-
-      if (comment.rowCount === 0) {
-        await client.query("ROLLBACK");
-        return { success: false, message: "Comment not found or unauthorized" };
-      }
-
-      const postId = comment.rows[0].post_id;
-
-      // Delete comment
-      await client.query(`DELETE FROM post_comments WHERE id = $1`, [
-        commentId,
-      ]);
-
-      // Decrement comment count
-      await client.query(
-        `
-        UPDATE posts 
-        SET comments_count = GREATEST(comments_count - 1, 0)
-        WHERE id = $1
-        `,
-        [postId],
-      );
-
-      await client.query("COMMIT");
-
-      // Invalidate caches
-      await invalidate([`posts:feed:*`, `posts:comments:${postId}:*`]);
-
-      return { success: true };
+      return commentResult.rows[0];
     } catch (error) {
       await client.query("ROLLBACK");
       throw error;
@@ -326,7 +271,6 @@ class PostModel {
           p.content,
           p.media_url,
           p.media_type,
-          p.villages,
           p.created_at,
           p.likes_count,
           p.comments_count,
@@ -341,8 +285,7 @@ class PostModel {
           u.id AS author_id,
           u.first_name,
           u.last_name,
-          u.avatar_url,
-          u.role
+          u.avatar_url
 
         FROM posts p
         JOIN users u ON u.id = p.user_id
@@ -384,7 +327,7 @@ class PostModel {
     const cacheKey = `posts:comments:${postId}:l${limit}:c${cursor || "first"}`;
 
     return getOrSetCache(cacheKey, 60, async () => {
-      const comments = await this._many(
+      return await this._many(
         `
         SELECT
           pc.id,
@@ -395,8 +338,7 @@ class PostModel {
           u.id AS user_id,
           u.first_name,
           u.last_name,
-          u.avatar_url,
-          u.role
+          u.avatar_url
         FROM post_comments pc
         JOIN users u ON u.id = pc.user_id
         WHERE pc.post_id = $1
@@ -406,13 +348,6 @@ class PostModel {
         `,
         [postId, limit, cursor],
       );
-
-      return {
-        comments,
-        nextCursor: comments.length
-          ? comments[comments.length - 1].created_at
-          : null,
-      };
     });
   }
 
@@ -444,8 +379,7 @@ class PostModel {
           u.id AS author_id,
           u.first_name,
           u.last_name,
-          u.avatar_url,
-          u.role
+          u.avatar_url
           
         FROM posts p
         JOIN users u ON u.id = p.user_id
@@ -462,90 +396,6 @@ class PostModel {
         nextCursor: posts.length ? posts[posts.length - 1].created_at : null,
       };
     });
-  }
-
-  /* ---------------- GET SINGLE POST ---------------- */
-  static async getPostById(postId, userId = null) {
-    const post = await this._single(
-      `
-      SELECT
-        p.id,
-        p.title,
-        p.content,
-        p.media_url,
-        p.media_type,
-        p.villages,
-        p.created_at,
-        p.likes_count,
-        p.comments_count,
-        
-        ${
-          userId
-            ? `
-        EXISTS (
-          SELECT 1
-          FROM post_likes pl
-          WHERE pl.post_id = p.id
-            AND pl.user_id = $2
-        ) AS is_liked,
-        `
-            : "false AS is_liked,"
-        }
-        
-        u.id AS author_id,
-        u.first_name,
-        u.last_name,
-        u.avatar_url,
-        u.role
-        
-      FROM posts p
-      JOIN users u ON u.id = p.user_id
-      WHERE p.id = $1
-      `,
-      userId ? [postId, userId] : [postId],
-    );
-
-    return post;
-  }
-
-  /* ---------------- DELETE POST ---------------- */
-  static async deletePost(postId, userId) {
-    const client = await db.connect();
-
-    try {
-      await client.query("BEGIN");
-
-      // Verify ownership
-      const post = await client.query(
-        `SELECT id, user_id FROM posts WHERE id = $1 AND user_id = $2`,
-        [postId, userId],
-      );
-
-      if (post.rowCount === 0) {
-        await client.query("ROLLBACK");
-        return { success: false, message: "Post not found or unauthorized" };
-      }
-
-      // Delete associated data (comments, likes) - cascade should handle this
-      // but explicit deletion ensures cleanup
-      await client.query(`DELETE FROM posts WHERE id = $1`, [postId]);
-
-      await client.query("COMMIT");
-
-      // Invalidate caches
-      await invalidate([
-        `posts:feed:*`,
-        `posts:user:${userId}:*`,
-        `posts:comments:${postId}:*`,
-      ]);
-
-      return { success: true };
-    } catch (error) {
-      await client.query("ROLLBACK");
-      throw error;
-    } finally {
-      client.release();
-    }
   }
 }
 
