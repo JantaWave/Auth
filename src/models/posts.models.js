@@ -106,6 +106,10 @@ class PostModel {
     );
 
     if (result.rowCount > 0) {
+      const post = await this._single(
+        `SELECT user_id FROM posts WHERE id = $1`,
+        [postId],
+      );
       await db.query(
         `
       UPDATE posts
@@ -114,6 +118,16 @@ class PostModel {
       `,
         [postId],
       );
+
+      if (post?.user_id !== userId) {
+        await ActivityModel.create({
+          actorId: userId,
+          targetUserId: post.user_id,
+          entityType: "post",
+          entityId: postId,
+          action: "dislike",
+        });
+      }
 
       await invalidate([`posts:feed:*`]);
     }
