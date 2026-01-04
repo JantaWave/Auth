@@ -1,5 +1,6 @@
 import { db } from "../config/db.js";
 import { getOrSetCache, invalidate } from "../utils/cache.js";
+import ActivityModel from "./activity.models.js";
 
 class PostModel {
   /* ---------------- HELPERS ---------------- */
@@ -60,88 +61,73 @@ class PostModel {
   static async likePost(userId, postId) {
     const result = await db.query(
       `
-      INSERT INTO post_likes (post_id, user_id)
-      VALUES ($1, $2)
-      ON CONFLICT DO NOTHING
-      `,
+    INSERT INTO post_likes (post_id, user_id)
+    VALUES ($1, $2)
+    ON CONFLICT DO NOTHING
+    `,
       [postId, userId],
     );
 
-    // increment only if inserted
     if (result.rowCount > 0) {
+      const post = await this._single(
+        `SELECT user_id FROM posts WHERE id = $1`,
+        [postId],
+      );
+
       await db.query(
         `UPDATE posts SET likes_count = likes_count + 1 WHERE id = $1`,
         [postId],
       );
-      await invalidate([`posts:feed:${userId}:*`]);
+
+      if (post?.user_id !== userId) {
+        await ActivityModel.create({
+          actorId: userId,
+          targetUserId: post.user_id,
+          entityType: "post",
+          entityId: postId,
+          action: "like",
+        });
+      }
+
+      await invalidate([`posts:feed:*`]);
     }
 
     return { liked: true };
   }
-
-  static async dislikePost(userId, postId) {
-    const result = await db.query(
-      `
-      DELETE FROM post_likes
-      WHERE post_id = $1 AND user_id = $2
-      `,
-      [postId, userId],
-    );
-
-    if (result.rowCount > 0) {
-      await db.query(
-        `UPDATE posts SET likes_count = GREATEST(likes_count - 1, 0) WHERE id = $1`,
-        [postId],
-      );
-      await invalidate([`posts:feed:${userId}:*`]);
-    }
-
-    return { liked: false };
-  }
-
   /* ---------------- COMMENTS ---------------- */
   static async postComment(postId, userId, content, parentCommentId = null) {
     const comment = await this._single(
       `
-      INSERT INTO post_comments (post_id, user_id, content, parent_comment_id)
-      VALUES ($1,$2,$3,$4)
-      RETURNING *
-      `,
+    INSERT INTO post_comments (post_id, user_id, content, parent_comment_id)
+    VALUES ($1,$2,$3,$4)
+    RETURNING *
+    `,
       [postId, userId, content, parentCommentId],
     );
+
+    const post = await this._single(`SELECT user_id FROM posts WHERE id = $1`, [
+      postId,
+    ]);
 
     await db.query(
       `UPDATE posts SET comments_count = comments_count + 1 WHERE id = $1`,
       [postId],
     );
 
+    if (post?.user_id !== userId) {
+      await ActivityModel.create({
+        actorId: userId,
+        targetUserId: post.user_id,
+        entityType: "post",
+        entityId: postId,
+        action: "comment",
+        metadata: { content },
+      });
+    }
+
     await invalidate([`posts:feed:*`]);
 
     return comment;
-  }
-
-  static async getPostComments(postId, limit = 10, cursor = null) {
-    return this._many(
-      `
-    SELECT
-      pc.id,
-      pc.post_id,
-      pc.content,
-      pc.created_at,
-      pc.parent_comment_id,
-      u.id AS user_id,
-      u.first_name,
-      u.last_name,
-      u.avatar_url
-    FROM post_comments pc
-    JOIN users u ON u.id = pc.user_id
-    WHERE pc.post_id = $1
-      AND ($3::timestamp IS NULL OR pc.created_at > $3)
-    ORDER BY pc.created_at ASC
-    LIMIT $2
-    `,
-      [postId, limit, cursor],
-    );
   }
 
   /* ---------------- COMMUNITY FEED ---------------- */

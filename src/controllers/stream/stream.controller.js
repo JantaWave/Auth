@@ -5,6 +5,7 @@ import { ApiResponse } from "../../utils/ApiResponse.js";
 import * as StreamSetupService from "../../services/stream-setup.service.js";
 import * as StreamSessionService from "../../services/stream-session.service.js";
 import StreamModel from "../../models/streams.models.js";
+import ActivityModel from "../../models/activity.models.js";
 
 /**
  * GET /streams - Get user's own streams with pagination
@@ -61,6 +62,14 @@ export const startStream = asyncHandler(async (req, res) => {
   }
 
   const result = await StreamSessionService.start(sessionId);
+  await ActivityModel.create({
+    actorId: req.user.id,
+    targetUserId: req.user.id,
+    entityType: "stream",
+    entityId: sessionId,
+    action: "start",
+  });
+
   return res.status(200).json(new ApiResponse(200, result, "Stream started"));
 });
 
