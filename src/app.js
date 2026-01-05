@@ -7,6 +7,7 @@ import routes_OAuth from "./routes/youtubeAuth.js";
 import socialMediaRouter from "./routes/socialMedia.js";
 import redirectsRouter from "./routes/redirects.js";
 import liveStreamRouter from "./routes/liveStream.js";
+import activityRoutes from "./routes/activity.js";
 import cookieParser from "cookie-parser";
 import { deviceInfoMiddleware } from "./middlewares/deviceinfo.middleware.js";
 import dotenv from "dotenv";
@@ -38,6 +39,7 @@ app.use("/api/v1/social-media", socialMediaRouter);
 app.use("/api/v1/streams", authMiddleware, liveStreamRouter);
 app.use("/api/v1/upload", uploadRoutes);
 app.use("/api/v1/posts", authMiddleware, postRoutes);
+app.use("/api/v1/activity", authMiddleware, activityRoutes);
 
 app.use("/r", redirectsRouter);
 
