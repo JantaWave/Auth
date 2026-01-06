@@ -11,7 +11,7 @@ import ActivityModel from "../../models/activity.models.js";
  * GET /streams - Get user's own streams with pagination
  */
 export const getUserStreams = asyncHandler(async (req, res) => {
-  const userId = req.user?.id;
+  const { userId } = req.params;
   if (!userId) throw new ApiError(401, "UserId is required");
 
   const limit = Number(req.query.limit || 10);

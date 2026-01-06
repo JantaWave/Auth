@@ -51,14 +51,16 @@ class StreamModel {
       [userId, limit, cursor],
     );
 
+    let nextCursor = null;
+    if (streams.length === limit) {
+      nextCursor = streams[streams.length - 1].created_at;
+    }
+
     return {
       streams,
-      nextCursor: streams.length
-        ? streams[streams.length - 1].created_at
-        : null,
+      nextCursor,
     };
   }
-
   /* ---------------- SINGLE STREAM ---------------- */
   static async get(sessionId) {
     return this._single(

@@ -13,7 +13,7 @@ import {
 
 const router = Router();
 
-router.get("/", authMiddleware, getUserStreams);
+router.get("/:userId", authMiddleware, getUserStreams);
 router.post("/setup", authMiddleware, setupStream);
 router.post("/start", authMiddleware, startStream);
 router.post("/stop", authMiddleware, stopStream);
