@@ -12,6 +12,7 @@ import ActivityModel from "../../models/activity.models.js";
  */
 export const getUserStreams = asyncHandler(async (req, res) => {
   const { userId } = req.params;
+  console.log(userId);
   if (!userId) throw new ApiError(401, "UserId is required");
 
   const limit = Number(req.query.limit || 10);
