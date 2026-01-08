@@ -67,6 +67,13 @@ export const verifyContact = asyncHandler(async (req, res) => {
 export const sendVerificationOTP = asyncHandler(async (req, res) => {
   const { contact } = req.body;
   if (!contact) throw new ApiError(400, "Contact is required");
+  const isContactExists = await UserModel.existsByMobile(contact);
+
+  if (isContactExists)
+    throw new ApiError(
+      400,
+      "Contact already registered, use a diffirent mobile number.",
+    );
 
   // Reset verification state if they are retrying
   await redisClient.del(`otp:verified:${contact}`);
