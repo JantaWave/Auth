@@ -63,17 +63,13 @@ export const getProfile = asyncHandler(async (req, res) => {
 export const updateProfile = asyncHandler(async (req, res) => {
   console.log("updateProfile called");
   const userId = req.user.id;
-  const {
-    first_name,
-    last_name,
-    date_of_birth,
-    avatar_url,
-    bio,
-    // Address fields
-    village, // This is the village_id from the frontend
-  } = req.body;
+  console.log("User from profile:", req.user);
+  const { first_name, last_name, date_of_birth, avatar_url, bio, village } =
+    req.body;
 
   // 1. Validate at least one field is present
+  if (req.user.role === "user" && village)
+    throw new ApiError(400, "User can't update ttheir Address.");
   if (
     !first_name &&
     !last_name &&
@@ -107,7 +103,7 @@ export const updateProfile = asyncHandler(async (req, res) => {
   if (bio) updateData.bio = bio.trim();
 
   // Map 'village' (ID) to 'village_id' for the database
-  if (village) {
+  if (village && req.user.role !== "user") {
     updateData.village_id = village;
   }
 
