@@ -332,8 +332,81 @@ class PostModel {
     });
   }
 
-  // ... Rest of the methods (getPostComments, getUserPosts) look fine ...
-  // Ensure you apply the `validCursor` fix to `getUserPosts` and `getPostComments` as well.
+  /* ---------------- GET POST COMMENTS ---------------- */
+  static async getPostComments(postId, limit = 10, cursor = null) {
+    const cacheKey = `posts:comments:${postId}:l${limit}:c${cursor || "first"}`;
+
+    return getOrSetCache(cacheKey, 60, async () => {
+      return await this._many(
+        `
+        SELECT
+          pc.id,
+          pc.post_id,
+          pc.content,
+          pc.created_at,
+          pc.parent_comment_id,
+          u.id AS user_id,
+          u.first_name,
+          u.last_name,
+          u.avatar_url
+        FROM post_comments pc
+        JOIN users u ON u.id = pc.user_id
+        WHERE pc.post_id = $1
+          AND ($3::timestamp IS NULL OR pc.created_at > $3)
+        ORDER BY pc.created_at ASC
+        LIMIT $2
+        `,
+        [postId, limit, cursor],
+      );
+    });
+  }
+
+  /* ---------------- GET USER POSTS ---------------- */
+  static async getUserPosts(userId, limit = 10, cursor = null) {
+    const cacheKey = `posts:user:${userId}:l${limit}:c${cursor || "first"}`;
+
+    return getOrSetCache(cacheKey, 60, async () => {
+      const posts = await this._many(
+        `
+        SELECT
+          p.id,
+          p.title,
+          p.content,
+          p.media_url,
+          p.media_type,
+          p.villages,
+          p.created_at,
+          p.likes_count,
+          p.comments_count,
+          
+          EXISTS (
+            SELECT 1
+            FROM post_likes pl
+            WHERE pl.post_id = p.id
+              AND pl.user_id = $1
+          ) AS is_liked,
+          
+          u.id AS author_id,
+          u.first_name,
+          u.last_name,
+          u.avatar_url
+          
+        FROM posts p
+        JOIN users u ON u.id = p.user_id
+        WHERE p.user_id = $1
+          AND ($3::timestamp IS NULL OR p.created_at < $3)
+        ORDER BY p.created_at DESC
+        LIMIT $2
+        `,
+        [userId, limit, cursor],
+      );
+
+      return {
+        posts,
+        nextCursor: posts.length ? posts[posts.length - 1].created_at : null,
+      };
+    });
+  }
 }
 
 export default PostModel;
