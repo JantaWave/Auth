@@ -59,7 +59,6 @@ class PostModel {
 
   /* ---------------- LIKE POST ---------------- */
   static async likePost(userId, postId) {
-    // Use a transaction to ensure data consistency
     const client = await db.connect();
 
     try {
@@ -84,7 +83,7 @@ class PostModel {
           UPDATE posts 
           SET likes_count = likes_count + 1 
           WHERE id = $1
-          RETURNING id, user_id
+          RETURNING id, user_id, likes_count
           `,
           [postId],
         );
@@ -103,15 +102,12 @@ class PostModel {
         }
 
         // Invalidate caches
-        await invalidate([
-          `posts:feed:*`,
-          `posts:user:${post.rows[0].user_id}:*`,
-        ]);
+        await invalidate([`posts:user:${post.rows[0].user_id}:*`]);
       } else {
         await client.query("COMMIT");
       }
 
-      return { liked: true };
+      return { liked: true, newCount: post.rows[0].likes_count };
     } catch (error) {
       await client.query("ROLLBACK");
       throw error;
@@ -120,7 +116,7 @@ class PostModel {
     }
   }
 
-  /* ---------------- DISLIKE POST ---------------- */
+  /* ---------------- DISLIKE POST (UNLIKE) ---------------- */
   static async dislikePost(userId, postId) {
     const client = await db.connect();
 
@@ -152,16 +148,8 @@ class PostModel {
 
         await client.query("COMMIT");
 
-        // Create activity notification if not self-dislike
-        if (post.rows[0]?.user_id && post.rows[0].user_id !== userId) {
-          await ActivityModel.create({
-            actorId: userId,
-            targetUserId: post.rows[0].user_id,
-            entityType: "post",
-            entityId: postId,
-            action: "dislike",
-          });
-        }
+        // DON'T create activity for unlike action
+        // Unliking is a passive action and shouldn't notify the post owner
 
         // Invalidate caches
         await invalidate([
@@ -219,7 +207,7 @@ class PostModel {
           entityType: "post",
           entityId: postId,
           action: "comment",
-          metadata: { content: content.substring(0, 100) }, // Limit content length
+          metadata: { content: content.substring(0, 100) },
         });
       }
 
