@@ -1,9 +1,10 @@
+// src/services/stream-setup.service.js
 import { createSessionId } from "./webrtc.service.js";
 import { getTokenRecord, ensureAccessToken } from "./tokenMangaer.js";
 import * as YouTubeService from "./social/youtube.service.js";
 import * as FacebookService from "./social/facebook.service.js";
 import StreamModel from "../models/streams.models.js";
-import { ApiError } from "../utils/ApiError.js"; // ✅ Import ApiError
+import { ApiError } from "../utils/ApiError.js";
 
 const activeSessions = new Map();
 
@@ -21,17 +22,15 @@ export async function setup(payload) {
 
   const sessionId = createSessionId();
   const shareUrls = {};
-
   let youtubeKey = null;
   let facebookKey = null;
   let instagramKey = null;
-  let youtubeStreamKey = null;
+  let youtubeBroadcastId = null; // ✅ Store broadcast ID separately
 
   // --- YOUTUBE SETUP ---
   if (youtube) {
     const record = await getTokenRecord({ userId, provider: "youtube" });
 
-    // ✅ Throw 400 so frontend knows user needs to connect account
     if (!record) {
       throw new ApiError(
         400,
@@ -41,7 +40,6 @@ export async function setup(payload) {
 
     try {
       const { access_token } = await ensureAccessToken(record);
-
       const youTubeData = await YouTubeService.createYouTubeStream(
         access_token,
         title,
@@ -51,20 +49,22 @@ export async function setup(payload) {
 
       const { broadcast, stream, ingestUrl } = youTubeData;
 
-      // Validation to ensure API returned expected data
+      // Validation
       if (!ingestUrl || !stream?.cdn?.ingestionInfo?.streamName) {
         throw new Error("Invalid response from YouTube API");
       }
 
       youtubeKey = ingestUrl;
-      console.log("youtubeKey generated:", youtubeKey);
+      youtubeBroadcastId = broadcast.id; // ✅ Store the broadcast ID
 
-      youtubeStreamKey = stream.cdn.ingestionInfo.streamName;
+      console.log("YouTube Broadcast Created:");
+      console.log("- Broadcast ID:", youtubeBroadcastId);
+      console.log("- Ingest URL:", youtubeKey);
+
+      // Store the watch URL with broadcast ID
       shareUrls.youtube = `https://www.youtube.com/watch?v=${broadcast.id}`;
     } catch (error) {
       console.error("YouTube Setup Error:", error);
-      // ✅ Throw 502 for external API failures (Bad Gateway)
-      // This catches quota limits, invalid tokens, or network issues
       throw new ApiError(502, `YouTube Setup Failed: ${error.message}`);
     }
   }
@@ -73,7 +73,6 @@ export async function setup(payload) {
   if (facebook) {
     const record = await getTokenRecord({ userId, provider: "facebook" });
 
-    // ✅ Throw 400 for missing connection
     if (!record) {
       throw new ApiError(
         400,
@@ -83,7 +82,6 @@ export async function setup(payload) {
 
     try {
       const { access_token } = await ensureAccessToken(record);
-
       const fb = await FacebookService.createFacebookStream(access_token);
 
       if (!fb || !fb.rtmp) {
@@ -92,16 +90,22 @@ export async function setup(payload) {
 
       facebookKey = fb.rtmp;
       shareUrls.facebook = fb.watchUrl;
+
+      // Extract Facebook video ID if available
+      const videoIdMatch = fb.watchUrl?.match(/videos\/(\d+)/);
+      if (videoIdMatch) {
+        console.log("Facebook Video ID:", videoIdMatch[1]);
+      }
     } catch (error) {
       console.error("Facebook Setup Error:", error);
       throw new ApiError(502, `Facebook Setup Failed: ${error.message}`);
     }
   }
 
-  // --- INSTAGRAM SETUP (Placeholder validation) ---
+  // --- INSTAGRAM SETUP ---
   if (instagram) {
-    // If you haven't implemented Instagram yet, throw error
-    // throw new ApiError(501, "Instagram streaming is coming soon!");
+    // Placeholder - implement when ready
+    throw new ApiError(501, "Instagram streaming is coming soon!");
   }
 
   // --- DATABASE SAVE ---
@@ -113,11 +117,11 @@ export async function setup(payload) {
       description,
       thumbnailUrl: overlays?.logoUrl || null,
       scheduledStartTime,
-      youtubeKey: youtubeKey,
+      youtubeKey: youtubeKey, // RTMP ingest URL
       facebookKey,
       instagramKey,
       overlays,
-      shareUrls,
+      shareUrls, // Contains YouTube watch URL with broadcast ID
       token: null,
     });
   } catch (error) {
@@ -125,13 +129,19 @@ export async function setup(payload) {
     throw new ApiError(500, "Failed to save stream session to database");
   }
 
+  // Store in active sessions
   activeSessions.set(sessionId, {
     userId,
     youtubeKey,
+    youtubeBroadcastId, // ✅ Store for later use
     facebookKey,
     instagramKey,
     overlays,
   });
 
-  return { sessionId, shareUrls };
+  return {
+    sessionId,
+    shareUrls,
+    youtubeBroadcastId, // Return to frontend if needed
+  };
 }

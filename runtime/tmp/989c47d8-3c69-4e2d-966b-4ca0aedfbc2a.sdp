@@ -1,0 +1,14 @@
+v=0
+o=- 0 0 IN IP4 127.0.0.1
+s=JantaWave Stream
+c=IN IP4 127.0.0.1
+t=0 0
+a=tool:mediasoup
+m=audio 12002 RTP/AVP 100
+a=rtpmap:100 opus/48000/2
+a=fmtp:100 sprop-stereo=1;useinbandfec=1
+a=rtcp-mux
+m=video 12004 RTP/AVP 101
+a=rtpmap:101 H264/90000
+a=fmtp:101 packetization-mode=1;profile-level-id=42e01f
+a=rtcp-mux
