@@ -407,6 +407,15 @@ class PostModel {
       };
     });
   }
+
+  static async getPostOwnerId(postId) {
+    const row = await this._single(
+      `SELECT user_id FROM posts WHERE id = $1 LIMIT 1`,
+      [postId],
+    );
+
+    return row?.user_id ?? null;
+  }
 }
 
 export default PostModel;

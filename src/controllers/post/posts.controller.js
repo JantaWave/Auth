@@ -2,16 +2,13 @@ import { asyncHandler } from "../../utils/asyncHandler.js";
 import { ApiResponse } from "../../utils/ApiResponse.js";
 import { ApiError } from "../../utils/ApiError.js";
 import PostModel from "../../models/posts.models.js";
+import { notifyUser } from "../../services/notification.service.js";
 
 export const createPost = asyncHandler(async (req, res) => {
-  const {
-    userId,
-    title,
-    content,
-    mediaUrl,
-    mediaType = "image",
-    villages,
-  } = req.body;
+  const userId = req.user?.id;
+  const { title, content, mediaUrl, mediaType = "image", villages } = req.body;
+
+  if (!userId) throw new ApiError(401, "Unauthorized");
 
   if (!userId) {
     return res.status(400).json({ error: "userId is required" });
@@ -27,6 +24,19 @@ export const createPost = asyncHandler(async (req, res) => {
   );
 
   const postId = result.id;
+
+  const followers = await CommunityModel.getUserFollowers(userId);
+
+  // ✅ send notification to each follower
+  await Promise.all(
+    followers.map((f) =>
+      notifyUser(f.follower_id, {
+        title: "New Post",
+        body: "A leader posted something new",
+        data: { type: "POST", postId, leaderId: userId },
+      }),
+    ),
+  );
 
   return res
     .status(201)
@@ -57,7 +67,17 @@ export const likeOrDislikePost = asyncHandler(async (req, res) => {
   const isLiked = await PostModel.isPostLikedByUser(postId, userId);
 
   if (isLiked.liked) {
-    await PostModel.dislikePost(userId, postId);
+    await PostModel.likePost(userId, postId);
+
+    const postOwnerId = await PostModel.getPostOwnerId(postId);
+
+    if (postOwnerId && postOwnerId !== userId) {
+      await notifyUser(postOwnerId, {
+        title: "New Like",
+        body: "Someone liked your post",
+        data: { type: "LIKE", postId },
+      });
+    }
   } else {
     await PostModel.likePost(userId, postId);
   }
@@ -110,6 +130,14 @@ export const postComments = asyncHandler(async (req, res) => {
     parentCommentId,
   );
   if (!comment) throw new ApiError(500, "Internal Server Error");
+  const postOwnerId = await PostModel.getPostOwnerId(postId);
+  if (postOwnerId && postOwnerId !== userId) {
+    await notifyUser(postOwnerId, {
+      title: "New Comment",
+      body: `${req.user.first_name} commented on your post`,
+      data: { type: "COMMENT", postId, commentId: comment.id },
+    });
+  }
 
   return res.status(200).json(new ApiResponse(200, comment, "Comment posted"));
 });

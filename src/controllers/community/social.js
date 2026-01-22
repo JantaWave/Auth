@@ -2,6 +2,7 @@ import CommunityModel from "../../models/community.models.js";
 import { ApiError } from "../../utils/ApiError.js";
 import { ApiResponse } from "../../utils/ApiResponse.js";
 import { asyncHandler } from "../../utils/asyncHandler.js";
+import { notifyUser } from "../../services/notification.service.js";
 
 /* ---------- FOLLOW USER ---------- */
 export const followUser = asyncHandler(async (req, res) => {
@@ -13,6 +14,12 @@ export const followUser = asyncHandler(async (req, res) => {
   }
 
   await CommunityModel.follow(followerId, targetUserId);
+
+  await notifyUser(targetUserId, {
+    title: "New Follower",
+    body: `${req.user.first_name} started following you`,
+    data: { type: "FOLLOW", followerId },
+  });
 
   return res
     .status(200)

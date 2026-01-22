@@ -63,6 +63,17 @@ export const startStream = asyncHandler(async (req, res) => {
   }
 
   const result = await StreamSessionService.start(sessionId);
+
+  await Promise.all(
+    (await CommunityModel.getUserFollowers(req.user.id)).map((f) =>
+      notifyUser(f.follower_id, {
+        title: "🔴 Stream Live",
+        body: "Leader is live now, join the stream!",
+        data: { type: "STREAM", streamId: sessionId, leaderId: req.user.id },
+      }),
+    ),
+  );
+
   await ActivityModel.create({
     actorId: req.user.id,
     targetUserId: req.user.id,
