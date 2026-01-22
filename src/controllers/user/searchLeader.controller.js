@@ -11,6 +11,8 @@ export const searchLeaders = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Search query is required");
   }
 
+  query = toLowerCase(query);
+
   const data = await UserModel.getLeaders(query, currentUserId);
 
   return res
