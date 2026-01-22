@@ -214,28 +214,31 @@ class UserModel {
   /* ---------------- LEADERS ---------------- */
 
   static async getLeaders(searchQuery, currentUserId) {
+    // We use %$1% for partial matching.
+    // We also concatenate first and last name to allow searching full names.
     return this._many(
       `
-      SELECT
-        u.id,
-        u.first_name,
-        u.last_name,
-        u.avatar_url,
-        COALESCE(lps.followers_count,0) AS followers_count,
-        COALESCE(lps.following_count,0) AS following_count,
-        COALESCE(lps.posts_count,0) AS posts_count,
-        COALESCE(lps.streams_count,0) AS streams_count
-      FROM users u
-      LEFT JOIN leader_profile_stats lps ON lps.user_id = u.id
-      WHERE u.role = 'leader'
-        AND u.id != $2
-        AND (
-          u.first_name ILIKE $1
-          OR u.last_name ILIKE $1
-        )
-      ORDER BY followers_count DESC
-      LIMIT 20
-      `,
+    SELECT
+      u.id,
+      u.first_name,
+      u.last_name,
+      u.avatar_url,
+      COALESCE(lps.followers_count, 0) AS followers_count,
+      COALESCE(lps.following_count, 0) AS following_count,
+      COALESCE(lps.posts_count, 0) AS posts_count,
+      COALESCE(lps.streams_count, 0) AS streams_count
+    FROM users u
+    LEFT JOIN leader_profile_stats lps ON lps.user_id = u.id
+    WHERE u.role = 'leader'
+      AND u.id != $2
+      AND (
+        u.first_name || ' ' || u.last_name ILIKE $1
+        OR u.first_name ILIKE $1
+        OR u.last_name ILIKE $1
+      )
+    ORDER BY followers_count DESC, u.first_name ASC
+    LIMIT 20
+    `,
       [`%${searchQuery}%`, currentUserId],
     );
   }

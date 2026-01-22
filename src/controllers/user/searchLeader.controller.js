@@ -7,19 +7,18 @@ export const searchLeaders = asyncHandler(async (req, res) => {
   const { query } = req.query;
   const currentUserId = req.user?.id;
 
-  if (!query) {
+  // Trim and check if query is empty
+  if (!query || !query.trim()) {
     throw new ApiError(400, "Search query is required");
   }
 
-  query = toLowerCase(query);
-
-  const data = await UserModel.getLeaders(query, currentUserId);
+  // Pass the trimmed query directly
+  const data = await UserModel.getLeaders(query.trim(), currentUserId);
 
   return res
     .status(200)
     .json(new ApiResponse(200, data, "Leaders searched successfully."));
 });
-
 export const getUserProfile = asyncHandler(async (req, res) => {
   const { userId } = req.params; // The profile ID from the URL
   const viewerId = req.user.id; // The logged-in user ID (from verifyJWT)
