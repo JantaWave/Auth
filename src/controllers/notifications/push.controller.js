@@ -6,6 +6,7 @@ import PushTokenModel from "../../models/push.models.js";
 export const registerPushToken = asyncHandler(async (req, res) => {
   const userId = req.user?.id;
   const { expoPushToken } = req.body;
+  console.log(`Expo Token for userId ${userId}: ${expoPushToken}`);
 
   if (!userId) throw new ApiError(401, "Unauthorized");
   if (!expoPushToken) throw new ApiError(400, "expoPushToken is required");
