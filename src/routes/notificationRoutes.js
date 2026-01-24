@@ -10,12 +10,12 @@ import {
 
 const router = Router();
 
-router.get("/notifications", authMiddleware, getMyNotifications);
-router.get("/notifications/unread-count", authMiddleware, getUnreadCount);
+router.get("/", getMyNotifications);
+router.get("/unread-count", getUnreadCount);
 
-router.patch("/notifications/:id/read", authMiddleware, markNotificationRead);
-router.patch("/notifications/read-all", authMiddleware, markAllRead);
+router.patch("/:id/read", markNotificationRead);
+router.patch("/notifications/read-all", markAllRead);
 
-router.delete("/notifications/:id", authMiddleware, deleteNotification);
+router.delete("/:id", deleteNotification);
 
 export default router;
