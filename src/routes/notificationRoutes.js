@@ -10,11 +10,11 @@ import {
 
 const router = Router();
 
-router.get("/", getMyNotifications);
+router.get("", getMyNotifications);
 router.get("/unread-count", getUnreadCount);
 
 router.patch("/:id/read", markNotificationRead);
-router.patch("/notifications/read-all", markAllRead);
+router.patch("/read-all", markAllRead);
 
 router.delete("/:id", deleteNotification);
 
