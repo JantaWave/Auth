@@ -43,7 +43,7 @@ app.use("/api/v1/upload", uploadRoutes);
 app.use("/api/v1/posts", authMiddleware, postRoutes);
 app.use("/api/v1/activity", authMiddleware, activityRoutes);
 app.use("/api/v1/push", authMiddleware, pushRoutes);
-app.use("/api/v1/notification", authMiddleware, NotificationRoutes);
+app.use("/api/v1/notifications", authMiddleware, NotificationRoutes);
 
 app.use("/r", redirectsRouter);
 
