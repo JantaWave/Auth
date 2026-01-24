@@ -32,7 +32,7 @@ export const createPost = asyncHandler(async (req, res) => {
     followers.map((f) =>
       notifyUser(f.follower_id, {
         title: "New Post",
-        body: "A leader posted something new",
+        body: `${req.user.first_name} ${req.user.last_name} posted something new`,
         data: { type: "POST", postId, leaderId: userId },
       }),
     ),

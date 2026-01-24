@@ -7,6 +7,7 @@ import routes_OAuth from "./routes/youtubeAuth.js";
 import socialMediaRouter from "./routes/socialMedia.js";
 import redirectsRouter from "./routes/redirects.js";
 import liveStreamRouter from "./routes/liveStream.js";
+import NotificationRoutes from "./routes/notificationRoutes.js";
 import activityRoutes from "./routes/activity.js";
 import pushRoutes from "./routes/pushRoutes.js";
 import cookieParser from "cookie-parser";
@@ -42,6 +43,7 @@ app.use("/api/v1/upload", uploadRoutes);
 app.use("/api/v1/posts", authMiddleware, postRoutes);
 app.use("/api/v1/activity", authMiddleware, activityRoutes);
 app.use("/api/v1/push", authMiddleware, pushRoutes);
+app.use("/api/v1/notification", authMiddleware, NotificationRoutes);
 
 app.use("/r", redirectsRouter);
 
