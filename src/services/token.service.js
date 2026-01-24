@@ -7,6 +7,7 @@ import {
 import {
   createSession,
   verifySessionRefreshToken,
+  updateSession, // ✅ Import updateSession
 } from "../services/session.service.js";
 
 /**
@@ -23,14 +24,18 @@ export async function blacklistToken(token, type = "access") {
     if (!decoded?.exp) return false;
 
     const ttl = decoded.exp - Math.floor(Date.now() / 1000);
+
     if (ttl > 0) {
+      // ✅ Fixed: Use proper template literal
       await redisClient.setEx(`blacklist:${type}:${token}`, ttl, "revoked");
     }
     return true;
   } catch (e) {
-    return false; // Ignore invalid tokens
+    console.error("❌ Failed to blacklist token:", e);
+    return false;
   }
 }
+
 /**
  * @desc Check if a token is blacklisted
  * @param {String} token - JWT token to check
@@ -38,17 +43,24 @@ export async function blacklistToken(token, type = "access") {
  * @returns {Promise<Boolean>} True if blacklisted
  */
 export async function isTokenBlacklisted(token, type = "access") {
+  // ✅ Fixed: Use proper template literal
   return (await redisClient.exists(`blacklist:${type}:${token}`)) === 1;
 }
 
 /**
  * @desc Rotate refresh token and update session
  * @param {String} oldToken - Old refresh token
+ * @param {String} sessionId - Session ID from request header (optional for web)
  * @param {Object} deviceInfo - Device information from middleware
  * @param {String} ip - IP address
  * @returns {Promise<Object>} New tokens or error
  */
-export async function rotateRefreshToken(oldToken, deviceInfo = {}, ip = null) {
+export async function rotateRefreshToken(
+  oldToken,
+  sessionId = null, // ✅ Add sessionId parameter
+  deviceInfo = {},
+  ip = null,
+) {
   // Check if token was already used (replay attack prevention)
   if (await isTokenBlacklisted(oldToken, "refresh")) {
     return { accessToken: null, refreshToken: null, error: "TOKEN_REUSED" };
@@ -60,6 +72,7 @@ export async function rotateRefreshToken(oldToken, deviceInfo = {}, ip = null) {
 
     // Verify token matches a stored session hash
     const session = await verifySessionRefreshToken(payload.id, oldToken);
+
     if (!session) {
       return {
         accessToken: null,
@@ -68,7 +81,25 @@ export async function rotateRefreshToken(oldToken, deviceInfo = {}, ip = null) {
       };
     }
 
-    // Blacklist old token
+    // ✅ IMPORTANT: If sessionId is provided (mobile client), validate it matches
+    if (sessionId && String(session.id) !== String(sessionId)) {
+      return {
+        accessToken: null,
+        refreshToken: null,
+        error: "SESSION_MISMATCH",
+      };
+    }
+
+    // ✅ Check if session is expired
+    if (new Date(session.expires_at) <= new Date()) {
+      return {
+        accessToken: null,
+        refreshToken: null,
+        error: "SESSION_EXPIRED",
+      };
+    }
+
+    // Blacklist old token to prevent reuse
     await blacklistToken(oldToken, "refresh");
 
     // Generate new token pair
@@ -78,11 +109,17 @@ export async function rotateRefreshToken(oldToken, deviceInfo = {}, ip = null) {
     });
     const refreshToken = generateRefreshToken({ id: payload.id });
 
-    // Update session with new refresh token hash
-    await createSession(payload.id, refreshToken, deviceInfo, ip);
+    // ✅ Update existing session instead of creating new one
+    await updateSession(session.id, refreshToken, deviceInfo, ip);
 
-    return { accessToken, refreshToken, sessionId: session.id, error: null };
+    return {
+      accessToken,
+      refreshToken,
+      sessionId: session.id,
+      error: null,
+    };
   } catch (err) {
+    console.error("❌ Token rotation error:", err);
     return {
       accessToken: null,
       refreshToken: null,

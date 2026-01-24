@@ -20,6 +20,26 @@ class PushTokenModel {
     );
     return rows.map((r) => r.expo_push_token);
   }
+
+  // ✅ delete one token (this device)
+  static async deleteToken(expoPushToken) {
+    await db.query(`DELETE FROM user_push_tokens WHERE expo_push_token = $1`, [
+      expoPushToken,
+    ]);
+  }
+
+  // ✅ delete all tokens for user (logout from all devices)
+  static async deleteAllByUserId(userId) {
+    await db.query(`DELETE FROM user_push_tokens WHERE user_id = $1`, [userId]);
+  }
+
+  static async deleteByUserAndToken(userId, expoPushToken) {
+    const result = await db.query(
+      `DELETE FROM user_push_tokens WHERE user_id=$1 AND expo_push_token=$2`,
+      [userId, expoPushToken],
+    );
+    return result.rowCount;
+  }
 }
 
 export default PushTokenModel;

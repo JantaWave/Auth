@@ -33,10 +33,12 @@ class UserSessionModel {
     return rows[0] || null;
   }
 
+  // ✅ FIX 1: Only return non-expired sessions
   static async findById(sessionId) {
     const q = `
       SELECT * FROM user_sessions
-      WHERE id = $1
+      WHERE id = $1 
+        AND expires_at > NOW()
     `;
     const { rows } = await db.query(q, [sessionId]);
     return rows[0] || null;
@@ -78,6 +80,7 @@ class UserSessionModel {
       UPDATE user_sessions 
       SET last_activity = NOW() 
       WHERE id = $1 
+        AND expires_at > NOW()
       RETURNING *
     `;
     const { rows } = await db.query(q, [sessionId]);
@@ -114,6 +117,31 @@ class UserSessionModel {
     `;
     const { rows } = await db.query(q);
     return rows.length;
+  }
+
+  // ✅ FIX 2: Remove revoked_at check since you're using hard delete
+  static async updateSession(sessionId, updates) {
+    const query = `
+      UPDATE user_sessions
+      SET 
+        refresh_token_hash = COALESCE($2, refresh_token_hash),
+        device_info = COALESCE($3, device_info),
+        ip_address = COALESCE($4, ip_address),
+        last_activity = COALESCE($5, last_activity)
+      WHERE id = $1 
+        AND expires_at > NOW()
+      RETURNING *
+    `;
+
+    const result = await db.query(query, [
+      sessionId,
+      updates.refresh_token_hash,
+      updates.device_info,
+      updates.ip_address,
+      updates.last_activity || new Date(),
+    ]);
+
+    return result.rows[0] || null;
   }
 }
 

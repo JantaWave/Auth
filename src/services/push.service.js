@@ -1,4 +1,5 @@
-import fetch from "node-fetch"; // only if your node version needs it
+import fetch from "node-fetch";
+import PushTokenModel from "../models/push.models.js";
 
 function chunkArray(arr, size) {
   const chunks = [];
@@ -9,13 +10,15 @@ function chunkArray(arr, size) {
 }
 
 function isExpoPushToken(token) {
-  return typeof token === "string" && token.startsWith("ExponentPushToken");
+  return (
+    typeof token === "string" &&
+    (token.startsWith("ExponentPushToken") || token.startsWith("ExpoPushToken"))
+  );
 }
 
 export async function sendExpoPush(tokens, payload) {
   if (!tokens || tokens.length === 0) return [];
 
-  // ✅ keep only valid tokens
   const validTokens = tokens.filter(isExpoPushToken);
   if (validTokens.length === 0) return [];
 
@@ -28,9 +31,7 @@ export async function sendExpoPush(tokens, payload) {
     priority: "high",
   }));
 
-  // ✅ Expo supports up to 100 notifications per request
   const chunks = chunkArray(messages, 100);
-
   const results = [];
 
   for (const chunk of chunks) {
@@ -46,6 +47,29 @@ export async function sendExpoPush(tokens, payload) {
 
     const data = await res.json();
     results.push(data);
+
+    // ✅ Auto cleanup invalid tokens
+    if (data?.data?.length) {
+      for (let i = 0; i < data.data.length; i++) {
+        const ticket = data.data[i];
+        const token = chunk[i]?.to;
+
+        if (ticket?.status === "error") {
+          const expoError = ticket?.details?.error;
+
+          // ✅ These tokens will never work again
+          if (
+            expoError === "DeviceNotRegistered" ||
+            expoError === "InvalidCredentials"
+          ) {
+            if (token) {
+              await PushTokenModel.deleteToken(token);
+              console.log("🧹 Deleted invalid expo token:", token, expoError);
+            }
+          }
+        }
+      }
+    }
   }
 
   return results;

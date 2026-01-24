@@ -32,6 +32,41 @@ export const createSession = async (
 };
 
 /**
+ * @desc Update existing session with new refresh token hash
+ * @param {Number} sessionId - Session ID to update
+ * @param {String} rawRefreshToken - New plain refresh token
+ * @param {Object} deviceInfo - Device information from middleware
+ * @param {String} ip - IP address
+ * @returns {Promise<Object>} Updated session
+ */
+export const updateSession = async (
+  sessionId,
+  rawRefreshToken,
+  deviceInfo = {},
+  ip = null,
+) => {
+  const refreshTokenHash = await hashToken(rawRefreshToken);
+
+  // Convert deviceInfo object to JSONB-friendly format
+  const deviceData = {
+    userAgent: deviceInfo.userAgent,
+    device: deviceInfo.device || "Unknown",
+    browser: deviceInfo.browser || "Unknown",
+    browserVersion: deviceInfo.browserVersion || "Unknown",
+    os: deviceInfo.os || "Unknown",
+    osVersion: deviceInfo.osVersion || "Unknown",
+    fingerprint: deviceInfo.fingerprint || null,
+  };
+
+  return UserSessionModel.updateSession(sessionId, {
+    refresh_token_hash: refreshTokenHash,
+    device_info: deviceData,
+    ip_address: ip,
+    last_activity: new Date(),
+  });
+};
+
+/**
  * @desc Verify refresh token against stored hash
  * @param {Number} userId - User ID
  * @param {String} rawToken - Plain refresh token from client

@@ -16,30 +16,42 @@ const REFRESH_TOKEN_EXPIRY_DAYS = parseInt(
  * @access Public (requires valid refresh token in cookie)
  */
 export const refreshAccessToken = asyncHandler(async (req, res) => {
-  // 1. CHANGE: Look in Cookies (Web) OR Body (Mobile)
   const oldRefreshToken = req.cookies?.refresh_token || req.body?.refreshToken;
+  const sessionId = req.headers["x-session-id"]; // ✅ Get session ID
 
   if (!oldRefreshToken) {
     throw new ApiError(401, "Refresh token not found");
   }
 
+  // ✅ Pass sessionId to service
   const result = await rotateRefreshToken(
     oldRefreshToken,
+    sessionId, // ✅ Add this parameter
     req.deviceInfo,
     req.ip,
   );
 
   if (result.error) {
-    // ... (Keep existing error handling) ...
+    const errorMessages = {
+      TOKEN_REUSED:
+        "This refresh token has already been used. Please login again.",
+      INVALID_SESSION: "Session not found. Please login again.",
+      SESSION_MISMATCH: "Session validation failed. Please login again.",
+      SESSION_EXPIRED: "Session expired. Please login again.",
+      TOKEN_EXPIRED: "Refresh token has expired. Please login again.",
+      INVALID_REFRESH_TOKEN: "Invalid refresh token. Please login again.",
+    };
+
     res.clearCookie("refresh_token");
     res.clearCookie("session_id");
+
     throw new ApiError(
       401,
       errorMessages[result.error] || "Authentication failed",
     );
   }
 
-  const { accessToken, refreshToken, sessionId } = result;
+  const { accessToken, refreshToken, sessionId: returnedSessionId } = result;
 
   const cookieOptions = {
     httpOnly: true,
@@ -49,22 +61,19 @@ export const refreshAccessToken = asyncHandler(async (req, res) => {
     maxAge: REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000,
   };
 
-  return (
-    res
-      .status(200)
-      // Keep setting cookies for Web clients
-      .cookie("refresh_token", refreshToken, cookieOptions)
-      .cookie("session_id", sessionId, cookieOptions)
-      .json(
-        new ApiResponse(
-          200,
-          {
-            accessToken,
-            // 2. CHANGE: Send refreshToken in JSON so Mobile can save it
-            refreshToken,
-          },
-          "Access token refreshed successfully",
-        ),
-      )
-  );
+  return res
+    .status(200)
+    .cookie("refresh_token", refreshToken, cookieOptions)
+    .cookie("session_id", returnedSessionId, cookieOptions)
+    .json(
+      new ApiResponse(
+        200,
+        {
+          accessToken,
+          refreshToken,
+          sessionId: returnedSessionId, // ✅ Return for mobile
+        },
+        "Access token refreshed successfully",
+      ),
+    );
 });

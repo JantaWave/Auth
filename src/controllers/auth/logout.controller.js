@@ -1,19 +1,35 @@
 import { asyncHandler } from "../../utils/asyncHandler.js";
 import { ApiResponse } from "../../utils/ApiResponse.js";
+import { ApiError } from "../../utils/ApiError.js";
 import * as SessionService from "../../services/session.service.js";
 import UserSessionModel from "../../models/authSession.model.js";
+import PushTokenModel from "../../models/push.models.js";
 import dotenv from "dotenv";
 dotenv.config();
 
-const logout = asyncHandler(async (req, res) => {
-  const { session_id } = req.cookies || {};
+/**
+ * Logout from current device/session
+ * Works for React Native using header: x-session-id
+ */
+export const logout = asyncHandler(async (req, res) => {
+  const userId = req.user?.id;
+  const sessionIdFromHeader = req.headers["x-session-id"];
+  const { expoPushToken } = req.body;
 
-  if (session_id && req.user?.id) {
-    // Verify session belongs to the authenticated user
-    const session = await UserSessionModel.findById(session_id);
-    if (session && session.user_id === req.user.id) {
-      await SessionService.revokeSession(session_id);
+  if (!userId) throw new ApiError(401, "Unauthorized");
+
+  // revoke current session using sessionId
+  if (sessionIdFromHeader) {
+    const session = await UserSessionModel.findById(sessionIdFromHeader);
+
+    if (session && String(session.user_id) === String(userId)) {
+      await SessionService.revokeSession(sessionIdFromHeader);
     }
+  }
+
+  // delete this device push token (recommended safe delete)
+  if (expoPushToken) {
+    await PushTokenModel.deleteByUserAndToken(userId, expoPushToken);
   }
 
   const options = {
@@ -29,10 +45,19 @@ const logout = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, {}, "User logged out"));
 });
 
-const logoutFromAllDevices = asyncHandler(async (req, res) => {
-  if (req.user?.id) {
-    await SessionService.revokeAllUserSessions(req.user.id);
-  }
+/**
+ *  Logout from all devices
+ */
+export const logoutFromAllDevices = asyncHandler(async (req, res) => {
+  const userId = req.user?.id;
+
+  if (!userId) throw new ApiError(401, "Unauthorized");
+
+  // revoke all sessions
+  await SessionService.revokeAllUserSessions(userId);
+
+  // delete all push tokens for that user
+  await PushTokenModel.deleteAllByUserId(userId);
 
   const options = {
     httpOnly: true,
@@ -46,5 +71,3 @@ const logoutFromAllDevices = asyncHandler(async (req, res) => {
     .clearCookie("session_id", options)
     .json(new ApiResponse(200, {}, "User logged out from all devices"));
 });
-
-export { logout, logoutFromAllDevices };
