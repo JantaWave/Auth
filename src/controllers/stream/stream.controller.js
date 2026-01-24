@@ -6,6 +6,7 @@ import * as StreamSetupService from "../../services/stream-setup.service.js";
 import * as StreamSessionService from "../../services/stream-session.service.js";
 import StreamModel from "../../models/streams.models.js";
 import ActivityModel from "../../models/activity.models.js";
+import CommunityModel from "../../models/community.models.js";
 
 /**
  * GET /streams - Get user's own streams with pagination
