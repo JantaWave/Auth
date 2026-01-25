@@ -35,9 +35,8 @@ class PostModel {
       ],
     );
 
-    // FIXED: Only invalidate the specific user's posts, not everyone's feed.
-    // New posts will appear in others' feeds when their specific cache TTL expires.
-    await invalidate([`posts:user:${userId}:*`]);
+    // Invalidate the user's own posts and feed cache
+    await invalidate([`posts:user:${userId}:*`, `posts:feed:${userId}:*`]);
 
     return post;
   }
@@ -78,7 +77,7 @@ class PostModel {
       let newCount = null;
 
       if (likeResult.rowCount > 0) {
-        // FIXED: Return the new likes_count so frontend can update immediately
+        // Return the new likes_count so frontend can update immediately
         const post = await client.query(
           `
           UPDATE posts 
@@ -104,9 +103,11 @@ class PostModel {
           }).catch((err) => console.error("Activity creation failed", err));
         }
 
-        // FIXED: Removed global feed invalidation.
-        // Only invalidate the author's profile post list if strictly necessary.
-        await invalidate([`posts:user:${post.rows[0].user_id}:*`]);
+        // FIXED: Invalidate both the author's posts AND the liker's feed
+        await invalidate([
+          `posts:user:${post.rows[0].user_id}:*`, // Author's profile
+          `posts:feed:${userId}:*`, // Liker's feed
+        ]);
       } else {
         await client.query("COMMIT");
         // Retrieve current count if like already existed
@@ -145,7 +146,7 @@ class PostModel {
       let newCount = null;
 
       if (deleteResult.rowCount > 0) {
-        // FIXED: Return new count
+        // Return new count
         const post = await client.query(
           `
           UPDATE posts
@@ -160,8 +161,11 @@ class PostModel {
 
         await client.query("COMMIT");
 
-        // FIXED: Removed global feed invalidation
-        await invalidate([`posts:user:${post.rows[0].user_id}:*`]);
+        // FIXED: Invalidate both the author's posts AND the unliker's feed
+        await invalidate([
+          `posts:user:${post.rows[0].user_id}:*`, // Author's profile
+          `posts:feed:${userId}:*`, // Unliker's feed
+        ]);
       } else {
         await client.query("COMMIT");
         const current = await this._single(
@@ -249,11 +253,11 @@ class PostModel {
 
       handleNotifications();
 
-      // FIXED: Only invalidate the specific comment cache for this post
+      // FIXED: Invalidate comment cache, author's posts, and commenter's feed
       await invalidate([
-        `posts:comments:${postId}:*`,
-        // Optional: invalidate user profile if you show comment counts there
-        `posts:user:${post.rows[0].user_id}:*`,
+        `posts:comments:${postId}:*`, // Comments for this post
+        `posts:user:${post.rows[0].user_id}:*`, // Author's profile
+        `posts:feed:${userId}:*`, // Commenter's feed
       ]);
 
       return commentResult.rows[0];
@@ -267,7 +271,7 @@ class PostModel {
 
   /* ---------------- COMMUNITY FEED ---------------- */
   static async getPostForUsers(userId, limit = 5, cursor = null) {
-    // FIXED: Validation to prevent SQL crash
+    // Validation to prevent SQL crash
     const validCursor = cursor && !isNaN(Date.parse(cursor)) ? cursor : null;
 
     const cacheKey = `posts:feed:${userId}:l${limit}:c${validCursor || "first"}`;
