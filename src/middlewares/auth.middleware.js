@@ -51,7 +51,6 @@ export const authMiddleware = async (req, res, next) => {
     req.user = UserModel.sanitizeUser(user);
     req.session = session;
 
-    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     next();
   } catch (err) {
     console.log("❌ Auth middleware error:", err.message);

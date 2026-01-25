@@ -88,6 +88,11 @@ class PostModel {
           [postId],
         );
 
+        if (post.rowCount === 0) {
+          await client.query("ROLLBACK");
+          throw new ApiError(404, "Post not found");
+        }
+
         newCount = post.rows[0].likes_count;
 
         await client.query("COMMIT");
@@ -157,6 +162,11 @@ class PostModel {
           [postId],
         );
 
+        if (post.rowCount === 0) {
+          await client.query("ROLLBACK");
+          throw new ApiError(404, "Post not found");
+        }
+
         newCount = post.rows[0].likes_count;
 
         await client.query("COMMIT");
@@ -209,6 +219,10 @@ class PostModel {
         `,
         [postId],
       );
+      if (post.rowCount === 0) {
+        await client.query("ROLLBACK");
+        throw new ApiError(404, "Post not found");
+      }
 
       await client.query("COMMIT");
 

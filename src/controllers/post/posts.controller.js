@@ -12,6 +12,9 @@ export const createPost = asyncHandler(async (req, res) => {
 
   if (!userId) throw new ApiError(401, "Unauthorized");
 
+  if (!title?.trim() && !content?.trim() && !mediaUrl)
+    throw new ApiError(400, "Post must contain title/content/media");
+
   const result = await PostModel.addPost(
     userId,
     title,
@@ -28,7 +31,11 @@ export const createPost = asyncHandler(async (req, res) => {
 
   // ✅ Invalidate follower feed cache (don’t await if very large)
   const keys = followers.map((f) => `posts:feed:${f.follower_id}:*`);
-  invalidate(keys).catch(console.error);
+  const BATCH = 500;
+
+  for (let i = 0; i < keys.length; i += BATCH) {
+    invalidate(keys.slice(i, i + BATCH)).catch(console.error);
+  }
 
   // ✅ Notifications should NOT block API response
   followers.forEach((f) => {
@@ -49,7 +56,8 @@ export const getUserPost = asyncHandler(async (req, res) => {
     return res.status(400).json({ error: "User ID is required" });
   }
 
-  const limit = Number(req.query.limit || 10);
+  const limit = Math.min(Math.max(Number(req.query.limit) || 10, 1), 50);
+
   const cursor = req.query.cursor || null;
 
   const result = await PostModel.getUserPosts(userId, limit, cursor);
@@ -60,37 +68,36 @@ export const getUserPost = asyncHandler(async (req, res) => {
 });
 
 export const likeOrDislikePost = asyncHandler(async (req, res) => {
-  const { postId, userId } = req.params;
-  if (!userId || !postId)
-    throw new ApiError(401, "UserId and postId is required.");
+  const userId = req.user?.id; // ✅ take from auth
+  const { postId } = req.params;
 
-  const isLiked = await PostModel.isPostLikedByUser(postId, userId);
+  if (!userId) throw new ApiError(401, "Unauthorized");
+  if (!postId) throw new ApiError(400, "postId is required");
 
-  if (isLiked.liked) {
-    await PostModel.likePost(userId, postId);
+  const { liked } = await PostModel.isPostLikedByUser(postId, userId);
+
+  let result;
+
+  if (liked) {
+    // ✅ dislike
+    result = await PostModel.dislikePost(userId, postId);
+  } else {
+    // ✅ like
+    result = await PostModel.likePost(userId, postId);
 
     const postOwnerId = await PostModel.getPostOwnerId(postId);
-
     if (postOwnerId && postOwnerId !== userId) {
-      await notifyUser(postOwnerId, {
+      notifyUser(postOwnerId, {
         title: "New Like",
         body: "Someone liked your post",
         data: { type: "LIKE", postId },
-      });
+      }).catch(console.error);
     }
-  } else {
-    await PostModel.likePost(userId, postId);
   }
 
   return res
     .status(200)
-    .json(
-      new ApiResponse(
-        200,
-        { success: true },
-        "liked or disliked successfully.",
-      ),
-    );
+    .json(new ApiResponse(200, result, "Like status updated"));
 });
 
 export const getPostsForUser = asyncHandler(async (req, res) => {
@@ -122,6 +129,7 @@ export const postComments = asyncHandler(async (req, res) => {
   const { postId } = req.params;
   const { content, parentCommentId } = req.body;
   const userId = req.user.id;
+  if (!content?.trim()) throw new ApiError(400, "Comment content is required");
 
   const comment = await PostModel.postComment(
     postId,

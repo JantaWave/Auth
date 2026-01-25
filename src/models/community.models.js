@@ -146,7 +146,7 @@ class CommunityModel {
   }
   static async getFollowerIds(userId) {
     const { rows } = await db.query(
-      `SELECT follower_id FROM follows WHERE following_id = $1`,
+      `SELECT DISTINCT follower_id FROM follows WHERE following_id = $1`,
       [userId],
     );
     return rows.map((r) => r.follower_id);
