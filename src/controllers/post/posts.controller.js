@@ -3,16 +3,14 @@ import { ApiResponse } from "../../utils/ApiResponse.js";
 import { ApiError } from "../../utils/ApiError.js";
 import PostModel from "../../models/posts.models.js";
 import { notifyUser } from "../../services/notification.service.js";
+import CommunityModel from "../../models/community.models.js";
+import { invalidate } from "../../utils/cache.js";
 
 export const createPost = asyncHandler(async (req, res) => {
   const userId = req.user?.id;
   const { title, content, mediaUrl, mediaType = "image", villages } = req.body;
 
   if (!userId) throw new ApiError(401, "Unauthorized");
-
-  if (!userId) {
-    return res.status(400).json({ error: "userId is required" });
-  }
 
   const result = await PostModel.addPost(
     userId,
@@ -25,24 +23,26 @@ export const createPost = asyncHandler(async (req, res) => {
 
   const postId = result.id;
 
+  // ✅ Followers
   const followers = await CommunityModel.getUserFollowers(userId);
 
-  // ✅ send notification to each follower
-  await Promise.all(
-    followers.map((f) =>
-      notifyUser(f.follower_id, {
-        title: "New Post",
-        body: `${req.user.first_name} ${req.user.last_name} posted something new`,
-        data: { type: "POST", postId, leaderId: userId },
-      }),
-    ),
-  );
+  // ✅ Invalidate follower feed cache (don’t await if very large)
+  const keys = followers.map((f) => `posts:feed:${f.follower_id}:*`);
+  invalidate(keys).catch(console.error);
+
+  // ✅ Notifications should NOT block API response
+  followers.forEach((f) => {
+    notifyUser(f.follower_id, {
+      title: "New Post",
+      body: `${req.user.first_name} ${req.user.last_name} posted something new`,
+      data: { type: "POST", postId, leaderId: userId },
+    }).catch(console.error);
+  });
 
   return res
     .status(201)
     .json(new ApiResponse(201, { postId }, "Post created successfully"));
 });
-
 export const getUserPost = asyncHandler(async (req, res) => {
   const { userId } = req.params;
   if (!userId) {
