@@ -192,6 +192,108 @@ class AddressModel {
         ),
     );
   }
+  static async getAllDistricts() {
+    const query = `
+    SELECT 
+      d.district_id AS id,
+      d.district_name AS name,
+      d.created_at,
+      s.state_id,
+      s.state_name
+    FROM districts d
+    LEFT JOIN states s ON s.state_id = d.state_id
+    ORDER BY s.state_name, d.district_name;
+  `;
+
+    const { rows } = await db.query(query);
+
+    return rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      created_at: r.created_at,
+      state: {
+        id: r.state_id,
+        name: r.state_name,
+      },
+    }));
+  }
+
+  static async getAllBlocks() {
+    const query = `
+    SELECT 
+      b.block_id AS id,
+      b.block_name AS name,
+      b.created_at,
+      d.district_id,
+      d.district_name,
+      s.state_id,
+      s.state_name
+    FROM blocks b
+    LEFT JOIN districts d ON d.district_id = b.district_id
+    LEFT JOIN states s ON s.state_id = d.state_id
+    ORDER BY s.state_name, d.district_name, b.block_name;
+  `;
+
+    const { rows } = await db.query(query);
+
+    return rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      created_at: r.created_at,
+      district: {
+        id: r.district_id,
+        name: r.district_name,
+      },
+      state: {
+        id: r.state_id,
+        name: r.state_name,
+      },
+    }));
+  }
+
+  static async getAllVillages() {
+    const query = `
+    SELECT 
+      v.village_id AS id,
+      v.village_name AS name,
+      v.created_at,
+      b.block_id,
+      b.block_name,
+      d.district_id,
+      d.district_name,
+      s.state_id,
+      s.state_name
+    FROM villages v
+    LEFT JOIN blocks b ON b.block_id = v.block_id
+    LEFT JOIN districts d ON d.district_id = b.district_id
+    LEFT JOIN states s ON s.state_id = d.state_id
+    ORDER BY 
+      s.state_name,
+      d.district_name,
+      b.block_name,
+      v.village_name;
+  `;
+
+    const { rows } = await db.query(query);
+
+    return rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      created_at: r.created_at,
+      block: {
+        id: r.block_id,
+        name: r.block_name,
+      },
+      district: {
+        id: r.district_id,
+        name: r.district_name,
+      },
+      state: {
+        id: r.state_id,
+        name: r.state_name,
+      },
+    }));
+  }
 
   static async getAllVillagesCount() {
     return getOrSetCache(
