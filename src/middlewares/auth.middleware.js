@@ -27,7 +27,7 @@ export const authMiddleware = async (req, res, next) => {
     }
 
     // ✅ Check active session exists
-    const session = await UserSessionModel.findById(sessionId).lean();
+    const session = await UserSessionModel.findById(sessionId);
 
     if (!session) {
       return res
